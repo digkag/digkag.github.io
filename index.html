@@ -120,12 +120,6 @@
       <input type="number" id="markup" value="1.10" step="0.01">
     </div>
   </div>
-  <div class="row">
-    <div>
-      <label>スキップするitemManagementId / itemCode (カンマまたは改行区切り。既存の別商品と衝突する場合など)</label>
-      <textarea id="skipList" placeholder="例: nj-albcsofa"></textarea>
-    </div>
-  </div>
 
   <h3>Type判定ルール(商品名にキーワードが含まれていたら適用。上から順に最初に一致したものを使用)</h3>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
@@ -1158,13 +1152,10 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const vendor = document.getElementById('vendor').value || currentStore;
     const markup = parseFloat(document.getElementById('markup').value) || 1.10;
     const markupInt = Math.round(markup * 100);
-    const skipList = document.getElementById('skipList').value
-      .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
 
     const outRows = [];
     const leadtimeReview = [];
     const typeReview = [];
-    const skipped = [];
 
     // Type/Tags判定: 通常はキーワードベース(guessType)でTypeのみ、Tagsは更新ルールで決定。
     // ジャンルIDベースが有効な店舗は 楽天の品番→ジャンルID→(マスタ)→Type/Tags の順で解決し、
@@ -1196,7 +1187,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       const mgmtId = (it.itemManagementId || '').trim();
       const itemCode = (it.itemCode || '').trim();
       if (!mgmtId) continue;
-      if (skipList.includes(mgmtId) || skipList.includes(itemCode)) { skipped.push(mgmtId); continue; }
 
       const handle = itemCode;
       const title = (it.itemName || '').replace('【送料無料】', '');
@@ -1317,8 +1307,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
     const distinctHandles = new Set(outRows.map(r => r.Handle)).size;
     document.getElementById('summary').innerHTML =
-      '店舗: ' + currentStore + ' / 処理商品数: ' + distinctHandles + ' / 出力行数: ' + outRows.length +
-      (skipped.length ? ' / スキップ: ' + skipped.join(', ') : '');
+      '店舗: ' + currentStore + ' / 処理商品数: ' + distinctHandles + ' / 出力行数: ' + outRows.length;
 
     const warnEl = document.getElementById('warnList');
     const warnBlocks = [];
