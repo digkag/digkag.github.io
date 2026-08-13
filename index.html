@@ -189,12 +189,14 @@
   <div class="warn-box">
     ⚠️ 注意: ここで出力されるCSVは、変換対象になった商品<b>すべて</b>に対して、チェックした項目を<b>一括で上書き更新</b>するCSVです。特定の商品だけを更新したい場合は、ダウンロード後にExcelなどで対象外の行を削除してからMatrixifyに取り込んでください。
   </div>
-  <p class="hint">チェックした項目だけを含む、更新専用の軽量CSVを別途ダウンロードできます(画像やバリアント構成には触れません)。</p>
+  <p class="hint">チェックした項目だけを含む、更新専用の軽量CSVを別途ダウンロードできます(バリアント構成そのものには触れません)。</p>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdatePrice"> 価格</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateWeight"> 重量</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateTitle"> 商品名</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateTags"> タグ</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateType"> 商品タイプ</label>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateImage1"> 1枚目画像(文字無し)</label>
+  <p class="hint" id="selUpdateImage1Hint" style="margin-top:4px;">「1. CSVファイルを選択」の「文字無し1枚目画像」で選んだフォルダの中から、品番(Handle/Variant SKU)が一致する商品だけ、1枚目の画像をMERGEで差し替えます(他の画像・バリアントは変更されません)。取込時はそのフォルダをZIP化して画像ZIPとして一緒にアップロードしてください。</p>
 
   <p class="hint" style="margin-top:12px;">その他の項目を更新したい場合は、列名を直接入力してください(最大3つ。入力候補から選べます)。</p>
   <div class="row">
@@ -203,8 +205,9 @@
     <div><input type="text" id="selUpdateFree3" list="allHeaderColumns" placeholder="自由記入欄3"></div>
   </div>
   <datalist id="allHeaderColumns"></datalist>
-  <div style="margin-top:8px;">
+  <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
     <button class="btn secondary small" id="clearSelUpdateBtn">選択をクリア</button>
+    <span class="hint" id="selUpdateStatus"></span>
   </div>
 </section>
 
@@ -978,7 +981,7 @@ function populateHeaderDatalist() {
 }
 
 document.getElementById('clearSelUpdateBtn').addEventListener('click', () => {
-  ['selUpdatePrice', 'selUpdateWeight', 'selUpdateTitle', 'selUpdateTags', 'selUpdateType'].forEach(id => {
+  ['selUpdatePrice', 'selUpdateWeight', 'selUpdateTitle', 'selUpdateTags', 'selUpdateType', 'selUpdateImage1'].forEach(id => {
     document.getElementById(id).checked = false;
   });
   ['selUpdateFree1', 'selUpdateFree2', 'selUpdateFree3'].forEach(id => {
@@ -1302,25 +1305,29 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
   const wantTitle = document.getElementById('selUpdateTitle').checked;
   const wantTags = document.getElementById('selUpdateTags').checked;
   const wantType = document.getElementById('selUpdateType').checked;
+  const wantImage1 = document.getElementById('selUpdateImage1').checked;
   const freeNames = [
     document.getElementById('selUpdateFree1').value,
     document.getElementById('selUpdateFree2').value,
     document.getElementById('selUpdateFree3').value,
   ].map(s => (s || '').trim()).filter(Boolean);
 
-  if (!wantPrice && !wantWeight && !wantTitle && !wantTags && !wantType && freeNames.length === 0) {
-    alert('価格・重量・商品名・タグ・商品タイプ、または自由記載欄のいずれか1つ以上を指定してください。');
+  if (!wantPrice && !wantWeight && !wantTitle && !wantTags && !wantType && !wantImage1 && freeNames.length === 0) {
+    alert('価格・重量・商品名・タグ・商品タイプ・1枚目画像、または自由記載欄のいずれか1つ以上を指定してください。');
     return;
   }
+  if (wantImage1) buildCleanThumbLookup();
   const cols = ['Handle', 'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Variant SKU'];
   if (wantPrice) cols.push('Variant Price');
   if (wantWeight) cols.push('Variant Grams');
   if (wantTitle) cols.push('Title');
   if (wantTags) cols.push('Tags');
   if (wantType) cols.push('Type');
+  if (wantImage1) { cols.push('Image Src'); cols.push('Image Position'); cols.push('Image Command'); }
   freeNames.forEach(name => { if (!cols.includes(name)) cols.push(name); });
   cols.push('Variant Command');
 
+  let image1Matched = 0;
   const rows = [];
   let prevHandle = null;
   lastOutputRows.forEach(r => {
@@ -1330,6 +1337,22 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
     const out = {};
     cols.forEach(c => out[c] = r[c] !== undefined ? r[c] : '');
     out['Variant Command'] = 'MERGE';
+    if (wantImage1) {
+      out['Image Src'] = '';
+      out['Image Position'] = '';
+      out['Image Command'] = '';
+      if (isFirst) {
+        const key1 = (r.Handle || '').trim().toLowerCase();
+        const key2 = (r['Variant SKU'] || '').trim().toLowerCase();
+        const matched = cleanThumbLookup[key1] || cleanThumbLookup[key2];
+        if (matched) {
+          out['Image Src'] = matched;
+          out['Image Position'] = '1';
+          out['Image Command'] = 'MERGE';
+          image1Matched++;
+        }
+      }
+    }
     if (!isFirst) {
       if (cols.includes('Title')) out.Title = '';
       if (cols.includes('Tags')) out.Tags = '';
@@ -1340,6 +1363,15 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
 
   const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
   downloadCSV('shopify_' + currentStore + '_選択更新_' + today + '.csv', cols, rows.map(r => cols.map(c => r[c])));
+
+  const statusEl = document.getElementById('selUpdateStatus');
+  if (statusEl) {
+    statusEl.textContent = wantImage1
+      ? '✓ ダウンロードしました(1枚目画像が一致した商品: ' + image1Matched + '件)'
+      : '✓ ダウンロードしました';
+    clearTimeout(statusEl._t);
+    statusEl._t = setTimeout(() => { statusEl.textContent = ''; }, 5000);
+  }
 });
 
 function readFileAsArrayBuffer(file) {
