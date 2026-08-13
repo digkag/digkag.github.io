@@ -107,12 +107,7 @@
 
 <section>
   <h2>2. 店舗を選択</h2>
-  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集内容はこのブラウザに自動保存されます。下の「共有ルールを書き出す」でファイル出力してGitHubにアップロードしておくと、他のPCでもこのツールを開くだけで同じ設定が自動的に反映されます。</p>
-  <div class="hint" id="sharedRulesStatus" style="margin-bottom:8px;"></div>
-  <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
-    <button class="btn secondary small" id="reloadSharedRulesBtn">共有ルールを再取得</button>
-    <button class="btn secondary small" id="exportSharedRulesBtn">共有ルールを書き出す(GitHubアップロード用)</button>
-  </div>
+  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。別のPC/ブラウザで使う場合はCSV出力→取込をご利用ください。</p>
   <div class="store-tabs" id="storeTabs"></div>
 
   <div class="row">
@@ -428,56 +423,6 @@ function loadGenreMasterFromStorage() {
   } catch (e) { console.error('ジャンルマスタの読込に失敗しました', e); }
 }
 
-// 全PC/ブラウザ間でルールを共有するための仕組み。
-// 「共有ルールを書き出す」でこのツールと同じ内容のrules.jsonを出力し、GitHub Pagesのリポジトリ直下に
-// アップロードしておくと、以降はどのPCでツールを開いてもこのファイルを自動取得してルールに反映する。
-// ローカルのfile://で開いた場合やネットワーク不通時はfetchが失敗するため、その場合はこのブラウザに
-// 保存済みのローカル設定(localStorage)をそのまま使う。
-const SHARED_RULES_URL = 'rules.json';
-
-function buildSharedRulesPayload() {
-  return { stores, leadtimeMaster, genreTypeMaster };
-}
-
-function applySharedRulesPayload(parsed) {
-  if (!parsed) return;
-  const savedStores = parsed.stores || {};
-  STORE_NAMES.forEach(name => {
-    if (savedStores[name]) {
-      if (Array.isArray(savedStores[name].typeRules)) stores[name].typeRules = savedStores[name].typeRules;
-      if (Array.isArray(savedStores[name].tagRules)) stores[name].tagRules = savedStores[name].tagRules.map(migrateTagRule);
-      if (typeof savedStores[name].useGenreIdType === 'boolean') stores[name].useGenreIdType = savedStores[name].useGenreIdType;
-    }
-  });
-  if (Array.isArray(parsed.leadtimeMaster)) leadtimeMaster = parsed.leadtimeMaster;
-  if (Array.isArray(parsed.genreTypeMaster)) genreTypeMaster = parsed.genreTypeMaster;
-  // 取得できた共有ルールはこのブラウザにもキャッシュしておく(次回オフライン時などのフォールバック用)
-  saveRulesToStorage();
-  saveGenreMasterToStorage();
-}
-
-async function loadSharedRulesFromGitHub(manual) {
-  const statusEl = document.getElementById('sharedRulesStatus');
-  if (typeof fetch !== 'function') return;
-  if (statusEl && manual) statusEl.textContent = '共有ルールを取得中...';
-  try {
-    const res = await fetch(SHARED_RULES_URL + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!res.ok) throw new Error('not found (status ' + res.status + ')');
-    const parsed = await res.json();
-    applySharedRulesPayload(parsed);
-    selectStore(currentStore);
-    renderLeadtimeMaster();
-    if (statusEl) {
-      const t = new Date().toLocaleString('ja-JP');
-      statusEl.textContent = '✓ 共有ルール(GitHub)を読み込みました(' + t + ')。全PC共通で最新の設定が反映されています。';
-    }
-  } catch (e) {
-    if (statusEl) {
-      statusEl.textContent = '共有ルール(rules.json)がまだ見つかりません。このブラウザに保存されているローカル設定を使用しています。「共有ルールを書き出す」で作成したファイルをGitHubにアップロードすると、次回から全PCで自動反映されます。';
-    }
-    console.warn('共有ルールの取得に失敗しました', e);
-  }
-}
 
 function flashSaveStatus(elId) {
   const el = document.getElementById(elId);
@@ -795,20 +740,6 @@ function downloadCSV(filename, headerCols, rows) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-function downloadJSON(filename, obj) {
-  const blob = new Blob(['﻿' + JSON.stringify(obj, null, 2)], { type: 'application/json;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-document.getElementById('exportSharedRulesBtn').addEventListener('click', () => {
-  downloadJSON('rules.json', buildSharedRulesPayload());
-});
-document.getElementById('reloadSharedRulesBtn').addEventListener('click', () => {
-  loadSharedRulesFromGitHub(true);
-});
 function readFileAsUTF8(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1070,13 +1001,45 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const { records: stockRecs } = toRecords(stockRows);
 
     // 楽天品番 -> ジャンルID のルックアップ(ジャンルIDベースType判定を使う店舗のみ)
+    // 楽天では色・サイズ違いを1つの「商品管理番号」の下に複数のSKU(SKU管理番号/システム連携用SKU番号)として
+    // まとめて登録していることが多く、auPAYのitemCode/itemManagementIdは、その商品管理番号そのものではなく、
+    // SKU管理番号の一部(例: auPAY「ke-sport01-2」⊂ 楽天SKU「ke-sport01-2-bk」「ke-sport01-2-wh」、
+    // どちらも商品管理番号は「ke-sport01」)であるケースがある。単純な商品管理番号の完全一致だけでは
+    // これらを拾えず「統合品番」として誤検出してしまうため、商品管理番号自体に加えて、
+    // SKU管理番号/システム連携用SKU番号そのもの、およびそれらと商品管理番号の間の「-」区切りの
+    // 中間コード(例: ke-sport01 → ke-sport01-2 → ke-sport01-2-bk)もすべてルックアップに登録する。
     const rakutenGenreLookup = {};
     if (useGenreId && rakutenText) {
       const { records: rakutenRecs } = toRecords(parseCSV(rakutenText));
+      const genreByMgmt = {};
       rakutenRecs.forEach(r => {
         const mgmt = (r['商品管理番号（商品URL）'] || '').trim();
         const genreId = (r['ジャンルID'] || '').trim();
-        if (mgmt && genreId && !rakutenGenreLookup[mgmt]) rakutenGenreLookup[mgmt] = genreId;
+        if (mgmt && genreId && !genreByMgmt[mgmt]) genreByMgmt[mgmt] = genreId;
+      });
+      const codeToMgmt = {};
+      rakutenRecs.forEach(r => {
+        const mgmt = (r['商品管理番号（商品URL）'] || '').trim();
+        if (!mgmt) return;
+        if (!codeToMgmt[mgmt]) codeToMgmt[mgmt] = mgmt;
+        [r['SKU管理番号'], r['システム連携用SKU番号']].forEach(raw => {
+          const code = (raw || '').trim();
+          if (!code) return;
+          if (!codeToMgmt[code]) codeToMgmt[code] = mgmt;
+          const marker = mgmt + '-';
+          if (code.startsWith(marker)) {
+            const parts = code.slice(mgmt.length + 1).split('-').filter(Boolean);
+            let prefix = mgmt;
+            parts.forEach(p => {
+              prefix = prefix + '-' + p;
+              if (!codeToMgmt[prefix]) codeToMgmt[prefix] = mgmt;
+            });
+          }
+        });
+      });
+      Object.keys(codeToMgmt).forEach(code => {
+        const mgmt = codeToMgmt[code];
+        if (genreByMgmt[mgmt]) rakutenGenreLookup[code] = genreByMgmt[mgmt];
       });
     }
     const genreTypeMap = {};
@@ -1445,7 +1408,6 @@ renderTagRules();
 renderLeadtimeMaster();
 populateHeaderDatalist();
 applyGenreIdTypeUI();
-loadSharedRulesFromGitHub();
 </script>
 
 </body>
