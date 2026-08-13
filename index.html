@@ -107,7 +107,7 @@
 
 <section>
   <h2>2. 店舗を選択</h2>
-  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。別のPC/ブラウザで使う場合はCSV出力→取込をご利用ください。</p>
+  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。他のPCにも反映したい場合は、各項目の「保存する」を押して出力されるファイルをGitHubにアップロードしてください。</p>
   <div class="store-tabs" id="storeTabs"></div>
 
   <div class="row">
@@ -150,6 +150,7 @@
     <button class="btn secondary small" id="exportTypeRulesBtn">CSV出力</button>
     <button class="btn secondary small" id="importTypeRulesBtn">CSV取込</button>
     <button class="btn secondary small" id="resetTypeRulesBtn">初期設定に戻す</button>
+    <button class="btn secondary small" id="saveSharedRulesBtnType">保存する</button>
     <input type="file" class="file-import" id="importTypeRulesFile" accept=".csv">
     <span class="save-status" id="typeSaveStatus"></span>
   </div>
@@ -162,6 +163,7 @@
     <button class="btn secondary small" id="exportTagRulesBtn">CSV出力</button>
     <button class="btn secondary small" id="importTagRulesBtn">CSV取込</button>
     <button class="btn secondary small" id="resetTagRulesBtn">初期設定に戻す</button>
+    <button class="btn secondary small" id="saveSharedRulesBtnTag">保存する</button>
     <input type="file" class="file-import" id="importTagRulesFile" accept=".csv">
     <span class="save-status" id="tagSaveStatus"></span>
   </div>
@@ -177,6 +179,7 @@
     <button class="btn secondary small" id="exportLeadtimeMasterBtn">CSV出力</button>
     <button class="btn secondary small" id="importLeadtimeMasterBtn">CSV取込</button>
     <button class="btn secondary small" id="resetLeadtimeMasterBtn">初期設定に戻す</button>
+    <button class="btn secondary small" id="saveSharedRulesBtnLeadtime">保存する</button>
     <input type="file" class="file-import" id="importLeadtimeMasterFile" accept=".csv">
     <span class="save-status" id="leadtimeMasterSaveStatus"></span>
   </div>
@@ -423,6 +426,68 @@ function loadGenreMasterFromStorage() {
   } catch (e) { console.error('ジャンルマスタの読込に失敗しました', e); }
 }
 
+// 全PC間でルールを共有するための仕組み。
+// 「保存」ボタンでこのツールと同じ内容のrules.jsonを書き出し、GitHub Pagesのリポジトリ直下にアップロード
+// しておくと、以降はどのPCでツールを開いてもこのファイルを自動で(裏側で静かに)取得してルールに反映する。
+// file://で開いた場合やネットワーク不通時、まだrules.jsonが無い場合はfetchが失敗するので、
+// その場合はこのブラウザに保存済みのローカル設定(localStorage)をそのまま使う(エラー表示はしない)。
+const SHARED_RULES_URL = 'rules.json';
+
+function buildSharedRulesPayload() {
+  return { stores, leadtimeMaster, genreTypeMaster };
+}
+
+function applySharedRulesPayload(parsed) {
+  if (!parsed) return;
+  const savedStores = parsed.stores || {};
+  STORE_NAMES.forEach(name => {
+    if (savedStores[name]) {
+      if (Array.isArray(savedStores[name].typeRules)) stores[name].typeRules = savedStores[name].typeRules;
+      if (Array.isArray(savedStores[name].tagRules)) stores[name].tagRules = savedStores[name].tagRules.map(migrateTagRule);
+      if (typeof savedStores[name].useGenreIdType === 'boolean') stores[name].useGenreIdType = savedStores[name].useGenreIdType;
+    }
+  });
+  if (Array.isArray(parsed.leadtimeMaster)) leadtimeMaster = parsed.leadtimeMaster;
+  if (Array.isArray(parsed.genreTypeMaster)) genreTypeMaster = parsed.genreTypeMaster;
+  saveRulesToStorage();
+  saveGenreMasterToStorage();
+}
+
+async function loadSharedRulesFromGitHub() {
+  if (typeof fetch !== 'function') return;
+  try {
+    const res = await fetch(SHARED_RULES_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return; // rules.json未アップロード。ローカル設定のまま何も表示しない。
+    const parsed = await res.json();
+    applySharedRulesPayload(parsed);
+    selectStore(currentStore);
+    renderLeadtimeMaster();
+  } catch (e) {
+    console.warn('共有ルールの取得に失敗しました(ローカル設定を使用します)', e);
+  }
+}
+
+function downloadJSON(filename, obj) {
+  const blob = new Blob(['﻿' + JSON.stringify(obj, null, 2)], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function saveSharedRules(statusElId) {
+  downloadJSON('rules.json', buildSharedRulesPayload());
+  const el = document.getElementById(statusElId);
+  if (el) {
+    el.textContent = '✓ 保存しました(rules.jsonをGitHubにアップロードすると他のPCにも反映されます)';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.textContent = ''; }, 5000);
+  }
+}
+document.getElementById('saveSharedRulesBtnType').addEventListener('click', () => saveSharedRules('typeSaveStatus'));
+document.getElementById('saveSharedRulesBtnTag').addEventListener('click', () => saveSharedRules('tagSaveStatus'));
+document.getElementById('saveSharedRulesBtnLeadtime').addEventListener('click', () => saveSharedRules('leadtimeMasterSaveStatus'));
 
 function flashSaveStatus(elId) {
   const el = document.getElementById(elId);
@@ -1408,6 +1473,7 @@ renderTagRules();
 renderLeadtimeMaster();
 populateHeaderDatalist();
 applyGenreIdTypeUI();
+loadSharedRulesFromGitHub();
 </script>
 
 </body>
