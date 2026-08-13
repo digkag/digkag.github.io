@@ -1026,7 +1026,9 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     }
     const genreTypeMap = {};
     if (useGenreId) {
-      genreTypeMaster.forEach(([id, type]) => { if (!(id in genreTypeMap)) genreTypeMap[id] = type; });
+      genreTypeMaster.forEach(([id, type, tags]) => {
+        if (!(id in genreTypeMap)) genreTypeMap[id] = { type, tags: tags || '' };
+      });
     }
 
     const stockByCode = {};
@@ -1052,21 +1054,30 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const typeReview = [];
     const skipped = [];
 
-    // Type判定: 通常はキーワードベース(guessType)。ジャンルIDベースが有効な店舗は
-    // 楽天の品番→ジャンルID→(マスタ)→Type の順で解決し、見つからなければエラーとして記録する。
-    function resolveType(it, mgmtId, itemCode) {
-      if (!useGenreId) return guessType(it.itemName || '');
+    // Type/Tags判定: 通常はキーワードベース(guessType)でTypeのみ、Tagsは更新ルールで決定。
+    // ジャンルIDベースが有効な店舗は 楽天の品番→ジャンルID→(マスタ)→Type/Tags の順で解決し、
+    // 見つからなければエラーとして記録する。マスタのTagsは既存のTags(更新ルール分)に追加(重複除去)される。
+    function resolveTypeAndTags(it, mgmtId, itemCode) {
+      if (!useGenreId) return { type: guessType(it.itemName || ''), tags: '' };
       const genreId = rakutenGenreLookup[itemCode] || rakutenGenreLookup[mgmtId];
       if (!genreId) {
         typeReview.push([mgmtId, '楽天データに対応する品番が見つかりません(統合品番の可能性)']);
-        return '';
+        return { type: '', tags: '' };
       }
-      const type = genreTypeMap[genreId];
-      if (!type) {
+      const entry = genreTypeMap[genreId];
+      if (!entry) {
         typeReview.push([mgmtId, 'ジャンルID ' + genreId + ' がマスタに見つかりません']);
-        return '';
+        return { type: '', tags: '' };
       }
-      return type;
+      return entry;
+    }
+
+    function mergeTags(existingTags, additionalTags) {
+      const list = (existingTags || '').split(',').map(t => t.trim()).filter(Boolean);
+      (additionalTags || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => {
+        if (!list.includes(t)) list.push(t);
+      });
+      return list.join(',');
     }
 
     for (const it of items) {
@@ -1162,11 +1173,12 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
           row['Image Command'] = 'REPLACE';
         }
         if (i === 0) {
+          const genreResult = resolveTypeAndTags(it, mgmtId, itemCode);
           row.Title = title;
           row['Body (HTML)'] = bodyHtml;
           row.Vendor = vendor;
-          row.Type = resolveType(it, mgmtId, itemCode);
-          row.Tags = fieldRules.tags;
+          row.Type = genreResult.type;
+          row.Tags = mergeTags(fieldRules.tags, genreResult.tags);
           Object.keys(fieldRules.otherFields).forEach(f => {
             if (Object.prototype.hasOwnProperty.call(row, f)) row[f] = fieldRules.otherFields[f];
           });
