@@ -107,7 +107,12 @@
 
 <section>
   <h2>2. 店舗を選択</h2>
-  <p class="hint">Type判定ルールとTagsルールは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。別のPC/ブラウザで使う場合はCSV出力→取込をご利用ください。</p>
+  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集内容はこのブラウザに自動保存されます。下の「共有ルールを書き出す」でファイル出力してGitHubにアップロードしておくと、他のPCでもこのツールを開くだけで同じ設定が自動的に反映されます。</p>
+  <div class="hint" id="sharedRulesStatus" style="margin-bottom:8px;"></div>
+  <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+    <button class="btn secondary small" id="reloadSharedRulesBtn">共有ルールを再取得</button>
+    <button class="btn secondary small" id="exportSharedRulesBtn">共有ルールを書き出す(GitHubアップロード用)</button>
+  </div>
   <div class="store-tabs" id="storeTabs"></div>
 
   <div class="row">
@@ -421,6 +426,57 @@ function loadGenreMasterFromStorage() {
     const raw = localStorage.getItem(GENRE_MASTER_STORAGE_KEY);
     if (raw) genreTypeMaster = JSON.parse(raw);
   } catch (e) { console.error('ジャンルマスタの読込に失敗しました', e); }
+}
+
+// 全PC/ブラウザ間でルールを共有するための仕組み。
+// 「共有ルールを書き出す」でこのツールと同じ内容のrules.jsonを出力し、GitHub Pagesのリポジトリ直下に
+// アップロードしておくと、以降はどのPCでツールを開いてもこのファイルを自動取得してルールに反映する。
+// ローカルのfile://で開いた場合やネットワーク不通時はfetchが失敗するため、その場合はこのブラウザに
+// 保存済みのローカル設定(localStorage)をそのまま使う。
+const SHARED_RULES_URL = 'rules.json';
+
+function buildSharedRulesPayload() {
+  return { stores, leadtimeMaster, genreTypeMaster };
+}
+
+function applySharedRulesPayload(parsed) {
+  if (!parsed) return;
+  const savedStores = parsed.stores || {};
+  STORE_NAMES.forEach(name => {
+    if (savedStores[name]) {
+      if (Array.isArray(savedStores[name].typeRules)) stores[name].typeRules = savedStores[name].typeRules;
+      if (Array.isArray(savedStores[name].tagRules)) stores[name].tagRules = savedStores[name].tagRules.map(migrateTagRule);
+      if (typeof savedStores[name].useGenreIdType === 'boolean') stores[name].useGenreIdType = savedStores[name].useGenreIdType;
+    }
+  });
+  if (Array.isArray(parsed.leadtimeMaster)) leadtimeMaster = parsed.leadtimeMaster;
+  if (Array.isArray(parsed.genreTypeMaster)) genreTypeMaster = parsed.genreTypeMaster;
+  // 取得できた共有ルールはこのブラウザにもキャッシュしておく(次回オフライン時などのフォールバック用)
+  saveRulesToStorage();
+  saveGenreMasterToStorage();
+}
+
+async function loadSharedRulesFromGitHub(manual) {
+  const statusEl = document.getElementById('sharedRulesStatus');
+  if (typeof fetch !== 'function') return;
+  if (statusEl && manual) statusEl.textContent = '共有ルールを取得中...';
+  try {
+    const res = await fetch(SHARED_RULES_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('not found (status ' + res.status + ')');
+    const parsed = await res.json();
+    applySharedRulesPayload(parsed);
+    selectStore(currentStore);
+    renderLeadtimeMaster();
+    if (statusEl) {
+      const t = new Date().toLocaleString('ja-JP');
+      statusEl.textContent = '✓ 共有ルール(GitHub)を読み込みました(' + t + ')。全PC共通で最新の設定が反映されています。';
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = '共有ルール(rules.json)がまだ見つかりません。このブラウザに保存されているローカル設定を使用しています。「共有ルールを書き出す」で作成したファイルをGitHubにアップロードすると、次回から全PCで自動反映されます。';
+    }
+    console.warn('共有ルールの取得に失敗しました', e);
+  }
 }
 
 function flashSaveStatus(elId) {
@@ -739,6 +795,20 @@ function downloadCSV(filename, headerCols, rows) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+function downloadJSON(filename, obj) {
+  const blob = new Blob(['﻿' + JSON.stringify(obj, null, 2)], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+document.getElementById('exportSharedRulesBtn').addEventListener('click', () => {
+  downloadJSON('rules.json', buildSharedRulesPayload());
+});
+document.getElementById('reloadSharedRulesBtn').addEventListener('click', () => {
+  loadSharedRulesFromGitHub(true);
+});
 function readFileAsUTF8(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -875,21 +945,6 @@ function extractBodyAndBanner(desc) {
   const banner = imgs.length ? imgs[imgs.length - 1] : '';
   tail = tail.trim().replace(/^(<br\s*\/?>)+/i, '');
   return [tail.trim(), banner];
-}
-
-function extractWeightGrams(desc) {
-  if (!desc) return [null, 'no marker'];
-  const m = desc.match(/■重量[:：]?\s*(?:<br>\s*)?([\s\S]*?)(?=■|$)/);
-  if (!m) return [null, 'no marker'];
-  let seg = m[1].replace(/^(<br\s*\/?>|\s)+/, '');
-  const m2 = seg.match(/^約?\s*([0-9]+(?:\.[0-9]+)?)\s*[kK][gG]/);
-  if (m2) {
-    const rest = seg.slice(m2[0].length);
-    if (/^(<br\s*\/?>|\s)*$/.test(rest)) {
-      return [String(Math.round(parseFloat(m2[1]) * 1000)), 'ok'];
-    }
-  }
-  return [null, 'complex: ' + seg.slice(0, 60)];
 }
 
 function normalizeLeadtime(txt) {
@@ -1049,7 +1104,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
 
     const outRows = [];
-    const weightReview = [];
     const leadtimeReview = [];
     const typeReview = [];
     const skipped = [];
@@ -1089,8 +1143,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       const handle = itemCode;
       const title = (it.itemName || '').replace('【送料無料】', '');
       const [bodyText, banner] = extractBodyAndBanner(it.descriptionForPC);
-      const [weightG, wstatus] = extractWeightGrams(it.descriptionForPC);
-      if (wstatus !== 'ok') weightReview.push([mgmtId, wstatus]);
       const price = it.itemPrice ? Math.floor((+it.itemPrice) * markupInt / 100) : '';
 
       const images = [];
@@ -1158,7 +1210,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
         row['Option1 Value'] = v.opt1Val;
         row['Option2 Value'] = v.opt2Val;
         row['Variant SKU'] = mgmtId;
-        row['Variant Grams'] = weightG || '';
+        row['Variant Grams'] = '';
         row['Variant Inventory Tracker'] = 'shopify';
         row['Variant Inventory Qty'] = v.qty;
         row['Variant Inventory Policy'] = 'deny';
@@ -1212,10 +1264,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
     const warnEl = document.getElementById('warnList');
     const warnBlocks = [];
-    if (weightReview.length) {
-      warnBlocks.push('Variant Gramsを自動抽出できなかった商品(空欄で出力されます):<br>' +
-        weightReview.map(([mid, st]) => '・' + mid + ' — ' + st).join('<br>'));
-    }
     if (leadtimeReview.length) {
       warnBlocks.push('⚠️ 納期(Variant Metafield: custom.leadtime)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
         leadtimeReview.map(([mid, opt]) => '・' + mid + (opt ? ' (' + opt + ')' : '')).join('<br>'));
@@ -1397,6 +1445,7 @@ renderTagRules();
 renderLeadtimeMaster();
 populateHeaderDatalist();
 applyGenreIdTypeUI();
+loadSharedRulesFromGitHub();
 </script>
 
 </body>
