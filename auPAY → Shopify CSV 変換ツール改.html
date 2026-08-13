@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<!-- saved from url=(0255)file:///C:/Users/genepa/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude/local-agent-mode-sessions/b1f9d22d-e5f4-4484-a3bd-48a7b2599d18/a9024459-9ac2-4cba-b28b-0c95ce44ee87/local_bf9d3c05-e831-4865-9306-0c6597d431dd/outputs/index.html -->
+<html lang="ja"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>auPAY → Shopify CSV 変換ツール</title>
+<script src="./auPAY → Shopify CSV 変換ツール改_files/xlsx.full.min.js.ダウンロード"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #222;
+    background: #fafafa;
+    line-height: 1.6;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: #666; font-size: 13px; margin: 0 0 24px; }
+  section {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+  h3 { font-size: 13px; font-weight: 600; margin: 16px 0 6px; }
+  label { font-size: 13px; color: #444; display: block; margin-bottom: 4px; }
+  input[type=file] { font-size: 13px; }
+  input[type=text], input[type=number], textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .row > div { flex: 1; min-width: 180px; }
+  table.rules { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.rules th, table.rules td { border: 1px solid #e0e0e0; padding: 4px 6px; text-align: left; }
+  table.rules input { border: none; width: 100%; font-size: 13px; padding: 3px 4px; }
+  table.rules button { font-size: 12px; padding: 2px 8px; cursor: pointer; }
+  .btn {
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 9px 18px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn:hover { background: #444; }
+  .btn.secondary { background: #fff; color: #222; border: 1px solid #ccc; }
+  .btn.small { padding: 4px 10px; font-size: 12px; }
+  .btn:disabled { background: #ccc; cursor: not-allowed; }
+  .store-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .store-tab {
+    background: #fff; border: 1px solid #ccc; border-radius: 16px;
+    padding: 6px 14px; font-size: 13px; cursor: pointer;
+  }
+  .store-tab.active { background: #222; color: #fff; border-color: #222; }
+  #log { font-size: 13px; white-space: pre-wrap; background: #f5f5f5; border-radius: 5px; padding: 10px 12px; margin-top: 12px; display: none; }
+  #preview-wrap { overflow-x: auto; margin-top: 12px; }
+  table.preview { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+  table.preview th, table.preview td { border: 1px solid #e5e5e5; padding: 4px 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  table.preview th { background: #f0f0f0; position: sticky; top: 0; }
+  .summary { font-size: 13px; margin-top: 10px; }
+  .warn-list { font-size: 12px; color: #a05a00; margin-top: 8px; }
+  .hint { font-size: 12px; color: #888; margin-top: 4px; }
+  .tagrule-sentence { font-size: 13px; }
+  .file-import { display: none; }
+  .save-status { font-size: 12px; color: #2a7a2a; margin-left: 8px; }
+  .warn-box {
+    background: #fff6e5; border: 1px solid #e8b84b; border-radius: 6px;
+    padding: 10px 12px; font-size: 13px; color: #7a5300; margin: 10px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>auPAY → Shopify CSV 変換ツール</h1>
+<p class="sub">wowma商品CSV(item)と在庫CSV(stock)から、Matrixify取込用のShopify商品CSVを作成します。ブラウザ内だけで処理され、外部にデータは送信されません。</p>
+
+<section>
+  <h2>1. CSVファイルを選択</h2>
+  <div class="row">
+    <div>
+      <label>商品CSV (wowma_rcmd_item_*.csv)</label>
+      <input type="file" id="itemFile" accept=".csv">
+    </div>
+    <div>
+      <label>在庫CSV (wowma_rcmd_stock_*.csv)</label>
+      <input type="file" id="stockFile" accept=".csv">
+    </div>
+  </div>
+  <p class="hint">文字コードはShift_JIS想定です。</p>
+</section>
+
+<section>
+  <h2>2. 店舗を選択</h2>
+  <p class="hint">Type判定ルールとTagsルールは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。別のPC/ブラウザで使う場合はCSV出力→取込をご利用ください。</p>
+  <div class="store-tabs" id="storeTabs"><button class="store-tab active">DigKag</button><button class="store-tab">リコメン堂</button><button class="store-tab">Branchee Beaute</button><button class="store-tab">KITCHENサジェスト</button><button class="store-tab">GraSUS</button><button class="store-tab">madokara</button><button class="store-tab">ハコモノヤ</button></div>
+
+  <div class="row">
+    <div>
+      <label>Vendor(店舗切替時に自動で店舗名が入ります。必要に応じて書き換えてください)</label>
+      <input type="text" id="vendor" value="DigKag">
+    </div>
+    <div>
+      <label>売価の掛け率(auPAYの税込価格に対して何%で販売するか。1.10なら110%)</label>
+      <input type="number" id="markup" value="1.10" step="0.01">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>スキップするitemManagementId / itemCode (カンマまたは改行区切り。既存の別商品と衝突する場合など)</label>
+      <textarea id="skipList" placeholder="例: nj-albcsofa"></textarea>
+    </div>
+  </div>
+
+  <h3>Type判定ルール(商品名にキーワードが含まれていたら適用。上から順に最初に一致したものを使用)</h3>
+  <table class="rules" id="typeRulesTable">
+    <thead><tr><th style="width:45%">キーワード</th><th>Type</th><th style="width:60px"></th></tr></thead>
+    <tbody><tr><td><input type="text" data-i="0" data-f="kw" value="ソファ"></td><td><input type="text" data-i="0" data-f="ty" value="ソファー"></td><td><button class="btn secondary small" data-del="0">削除</button></td></tr><tr><td><input type="text" data-i="1" data-f="kw" value="ソファーベッド"></td><td><input type="text" data-i="1" data-f="ty" value="ソファー"></td><td><button class="btn secondary small" data-del="1">削除</button></td></tr><tr><td><input type="text" data-i="2" data-f="kw" value="ソファーセット"></td><td><input type="text" data-i="2" data-f="ty" value="ソファー"></td><td><button class="btn secondary small" data-del="2">削除</button></td></tr><tr><td><input type="text" data-i="3" data-f="kw" value="キャビネット"></td><td><input type="text" data-i="3" data-f="ty" value="キャビネット"></td><td><button class="btn secondary small" data-del="3">削除</button></td></tr><tr><td><input type="text" data-i="4" data-f="kw" value="食器棚"></td><td><input type="text" data-i="4" data-f="ty" value="食器棚"></td><td><button class="btn secondary small" data-del="4">削除</button></td></tr><tr><td><input type="text" data-i="5" data-f="kw" value="キッチンボード"></td><td><input type="text" data-i="5" data-f="ty" value="食器棚"></td><td><button class="btn secondary small" data-del="5">削除</button></td></tr><tr><td><input type="text" data-i="6" data-f="kw" value="キッチンカウンター"></td><td><input type="text" data-i="6" data-f="ty" value="キッチンカウンター"></td><td><button class="btn secondary small" data-del="6">削除</button></td></tr><tr><td><input type="text" data-i="7" data-f="kw" value="センターテーブル"></td><td><input type="text" data-i="7" data-f="ty" value="センターテーブル"></td><td><button class="btn secondary small" data-del="7">削除</button></td></tr><tr><td><input type="text" data-i="8" data-f="kw" value="ダイニングテーブルセット"></td><td><input type="text" data-i="8" data-f="ty" value="ダイニングセット"></td><td><button class="btn secondary small" data-del="8">削除</button></td></tr><tr><td><input type="text" data-i="9" data-f="kw" value="ダイニングセット"></td><td><input type="text" data-i="9" data-f="ty" value="ダイニングセット"></td><td><button class="btn secondary small" data-del="9">削除</button></td></tr><tr><td colspan="3" style="text-align: center;"><button class="btn secondary small">▼ 残り20件を表示</button></td></tr></tbody>
+  </table>
+  <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+    <button class="btn secondary small" id="addTypeRuleBtn">+ 行を追加</button>
+    <button class="btn secondary small" id="exportTypeRulesBtn">CSV出力</button>
+    <button class="btn secondary small" id="importTypeRulesBtn">CSV取込</button>
+    <button class="btn secondary small" id="resetTypeRulesBtn">初期設定に戻す</button>
+    <input type="file" class="file-import" id="importTypeRulesFile" accept=".csv">
+    <span class="save-status" id="typeSaveStatus"></span>
+  </div>
+
+  <h3>更新ルール(条件に一致したら任意の項目に値を設定。複数追加できます)</h3>
+  <p class="hint">「出力先列」には項目名を自由に入力できます(入力候補あり)。Tagsに追加したい場合は出力先列に <b>Tags</b> と入力してください(下の初期例を参照)。Tags以外の項目は、条件に一致した最後のルールの値で上書きされます。</p>
+  <div id="tagRulesList"><div class="tagrule-sentence row" style="align-items: center;"><div style="max-width:140px;"><input type="text" data-i="0" data-f="field" value="itemOption" placeholder="検索対象列"></div><div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div><div style="max-width:180px;"><input type="text" data-i="0" data-f="condition" value="配達日時指定は不可" placeholder="条件文言"></div><div style="flex:0 0 auto; max-width:130px; white-space:nowrap;">の文言があれば、</div><div style="max-width:150px;"><input type="text" data-i="0" data-f="targetField" list="allHeaderColumns" value="Tags" placeholder="出力先列"></div><div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div><div style="max-width:180px;"><input type="text" data-i="0" data-f="value" value="配送希望日時指定不可" placeholder="設定する値"></div><div style="flex:0 0 auto; max-width:60px; white-space:nowrap;">を設定</div><div style="flex:0 0 auto;"><button class="btn secondary small" data-del="0">削除</button></div></div><div class="tagrule-sentence row" style="align-items: center;"><div style="max-width:140px;"><input type="text" data-i="1" data-f="field" value="Title" placeholder="検索対象列"></div><div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div><div style="max-width:180px;"><input type="text" data-i="1" data-f="condition" value="開梱設置無料" placeholder="条件文言"></div><div style="flex:0 0 auto; max-width:130px; white-space:nowrap;">の文言があれば、</div><div style="max-width:150px;"><input type="text" data-i="1" data-f="targetField" list="allHeaderColumns" value="Metafield: custom.product-badge [list.single_line_text_field]" placeholder="出力先列"></div><div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div><div style="max-width:180px;"><input type="text" data-i="1" data-f="value" value="組立・開梱設置無料" placeholder="設定する値"></div><div style="flex:0 0 auto; max-width:60px; white-space:nowrap;">を設定</div><div style="flex:0 0 auto;"><button class="btn secondary small" data-del="1">削除</button></div></div></div>
+  <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+    <button class="btn secondary small" id="addTagRuleBtn">+ ルールを追加</button>
+    <button class="btn secondary small" id="exportTagRulesBtn">CSV出力</button>
+    <button class="btn secondary small" id="importTagRulesBtn">CSV取込</button>
+    <button class="btn secondary small" id="resetTagRulesBtn">初期設定に戻す</button>
+    <input type="file" class="file-import" id="importTagRulesFile" accept=".csv">
+    <span class="save-status" id="tagSaveStatus"></span>
+  </div>
+
+  <h3>納期管理番号マスタ(全店舗共通・楽天/Yahoo/mercariと同一の管理番号)</h3>
+  <p class="hint">auPAYの<b>stockShippingDayId</b> / <b>choicesStockShippingDayId</b>がこの管理番号に一致した場合、Shopify納期文言を優先して「Variant Metafield: custom.leadtime」に設定します(auPAYの納期表示テキストより優先)。どちらも見つからない場合は空欄で出力され、変換後に警告リストで確認できます。</p>
+  <table class="rules" id="leadtimeMasterTable">
+    <thead><tr><th style="width:120px">管理番号</th><th>Shopify納期文言</th><th style="width:60px"></th></tr></thead>
+    <tbody><tr><td><input type="text" data-i="0" data-f="id" value="1"></td><td><input type="text" data-i="0" data-f="text" value="即日発送予定(土日祝除く14時までのご注文)"></td><td><button class="btn secondary small" data-del="0">削除</button></td></tr><tr><td><input type="text" data-i="1" data-f="id" value="2"></td><td><input type="text" data-i="1" data-f="text" value="通常1～3日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="1">削除</button></td></tr><tr><td><input type="text" data-i="2" data-f="id" value="3"></td><td><input type="text" data-i="2" data-f="text" value="通常2～4日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="2">削除</button></td></tr><tr><td><input type="text" data-i="3" data-f="id" value="4"></td><td><input type="text" data-i="3" data-f="text" value="通常3～5日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="3">削除</button></td></tr><tr><td><input type="text" data-i="4" data-f="id" value="5"></td><td><input type="text" data-i="4" data-f="text" value="通常4～6日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="4">削除</button></td></tr><tr><td><input type="text" data-i="5" data-f="id" value="6"></td><td><input type="text" data-i="5" data-f="text" value="通常1週間前後で発送予定"></td><td><button class="btn secondary small" data-del="5">削除</button></td></tr><tr><td><input type="text" data-i="6" data-f="id" value="7"></td><td><input type="text" data-i="6" data-f="text" value="通常10日前後で発送予定"></td><td><button class="btn secondary small" data-del="6">削除</button></td></tr><tr><td><input type="text" data-i="7" data-f="id" value="8"></td><td><input type="text" data-i="7" data-f="text" value="通常2週間前後で発送予定"></td><td><button class="btn secondary small" data-del="7">削除</button></td></tr><tr><td><input type="text" data-i="8" data-f="id" value="9"></td><td><input type="text" data-i="8" data-f="text" value="通常3週間前後で発送予定"></td><td><button class="btn secondary small" data-del="8">削除</button></td></tr><tr><td><input type="text" data-i="9" data-f="id" value="10"></td><td><input type="text" data-i="9" data-f="text" value="通常1ヶ月前後で発送予定"></td><td><button class="btn secondary small" data-del="9">削除</button></td></tr><tr><td colspan="3" style="text-align: center;"><button class="btn secondary small">▼ 残り74件を表示</button></td></tr></tbody>
+  </table>
+  <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+    <button class="btn secondary small" id="addLeadtimeMasterBtn">+ 行を追加</button>
+    <button class="btn secondary small" id="exportLeadtimeMasterBtn">CSV出力</button>
+    <button class="btn secondary small" id="importLeadtimeMasterBtn">CSV取込</button>
+    <button class="btn secondary small" id="resetLeadtimeMasterBtn">初期設定に戻す</button>
+    <input type="file" class="file-import" id="importLeadtimeMasterFile" accept=".csv">
+    <span class="save-status" id="leadtimeMasterSaveStatus"></span>
+  </div>
+
+  <h3>製品メタフィールド(手入力用の空欄列)について</h3>
+  <p class="hint">出力CSVの末尾に、管理画面の製品メタフィールド16項目を空欄で追加しています。「合わせて買いたい」「この商品のシリーズはこちら」「その他のサイズはこちら」のような商品を紐づける列には、<b>商品番号(SKU)ではなく商品のHandle(URL品番)</b>をカンマ区切りで入力してください(例: 2m-rogdt, ud-bibari60, hu-54681070)。それ以外の列(タイトル・フラグ・絞り込み用テキストなど)は文言をそのまま入力してください。</p>
+
+  <h3>選択して更新(既存商品の一部項目だけを更新したい場合)</h3>
+  <div class="warn-box">
+    ⚠️ 注意: ここで出力されるCSVは、変換対象になった商品<b>すべて</b>に対して、チェックした項目を<b>一括で上書き更新</b>するCSVです。特定の商品だけを更新したい場合は、ダウンロード後にExcelなどで対象外の行を削除してからMatrixifyに取り込んでください。
+  </div>
+  <p class="hint">チェックした項目だけを含む、更新専用の軽量CSVを別途ダウンロードできます(画像やバリアント構成には触れません)。</p>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdatePrice"> 価格</label>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateWeight"> 重量</label>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateTitle"> 商品名</label>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateTags"> タグ</label>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateType"> 商品タイプ</label>
+
+  <p class="hint" style="margin-top:12px;">その他の項目を更新したい場合は、列名を直接入力してください(最大3つ。入力候補から選べます)。</p>
+  <div class="row">
+    <div><input type="text" id="selUpdateFree1" list="allHeaderColumns" placeholder="例: Vendor"></div>
+    <div><input type="text" id="selUpdateFree2" list="allHeaderColumns" placeholder="例: Metafield: custom.coupon [boolean]"></div>
+    <div><input type="text" id="selUpdateFree3" list="allHeaderColumns" placeholder="自由記入欄3"></div>
+  </div>
+  <datalist id="allHeaderColumns"><option value="Handle"></option><option value="Title"></option><option value="Body (HTML)"></option><option value="Vendor"></option><option value="Product Category"></option><option value="Type"></option><option value="Tags"></option><option value="Published"></option><option value="Option1 Name"></option><option value="Option1 Value"></option><option value="Option2 Name"></option><option value="Option2 Value"></option><option value="Option3 Name"></option><option value="Option3 Value"></option><option value="Variant SKU"></option><option value="Variant Grams"></option><option value="Variant Inventory Tracker"></option><option value="Variant Inventory Qty"></option><option value="Variant Inventory Policy"></option><option value="Variant Fulfillment Service"></option><option value="Variant Price"></option><option value="Variant Compare At Price"></option><option value="Variant Requires Shipping"></option><option value="Variant Taxable"></option><option value="Variant Barcode"></option><option value="Image Src"></option><option value="Image Position"></option><option value="Image Alt Text"></option><option value="Gift Card"></option><option value="SEO Title"></option><option value="SEO Description"></option><option value="Google Shopping / Google Product Category"></option><option value="Google Shopping / Gender"></option><option value="Google Shopping / Age Group"></option><option value="Google Shopping / MPN"></option><option value="Google Shopping / Condition"></option><option value="Google Shopping / Custom Product"></option><option value="Google Shopping / Custom Label 0"></option><option value="Google Shopping / Custom Label 1"></option><option value="Google Shopping / Custom Label 2"></option><option value="Google Shopping / Custom Label 3"></option><option value="Google Shopping / Custom Label 4"></option><option value="Variant Image"></option><option value="Variant Weight Unit"></option><option value="Variant Tax Code"></option><option value="Cost per item"></option><option value="Included / Japan"></option><option value="Price / Japan"></option><option value="Compare At Price / Japan"></option><option value="Included / International"></option><option value="Price / International"></option><option value="Compare At Price / International"></option><option value="Status"></option><option value="Variant Metafield: custom.leadtime [single_line_text_field]"></option><option value="Variant Command"></option><option value="Image Command"></option><option value="Metafield: custom.cross-sell [single_line_text_field]"></option><option value="Metafield: custom._upsell-items-similar [list.product_reference]"></option><option value="Metafield: custom.series-sell [single_line_text_field]"></option><option value="Metafield: custom._upsell-items-series [list.product_reference]"></option><option value="Metafield: custom.other-size [single_line_text_field]"></option><option value="Metafield: custom._upsell-items-size [list.product_reference]"></option><option value="Metafield: custom.coupon [boolean]"></option><option value="Metafield: custom.narrow-down-seatsize [list.single_line_text_field]"></option><option value="Metafield: custom.narrow-down-widthsize [list.dimension]"></option><option value="Metafield: custom.narrow-down-heightsize [list.dimension]"></option><option value="Metafield: custom.narrow-down-material [list.single_line_text_field]"></option><option value="Metafield: custom.narrow-down-shape [single_line_text_field]"></option><option value="Metafield: custom.narrow-down-option [list.single_line_text_field]"></option><option value="Metafield: custom._related-cate [list.collection_reference]"></option><option value="Metafield: custom.delivery-date [single_line_text_field]"></option><option value="Metafield: custom.product-badge [list.single_line_text_field]"></option></datalist>
+  <div style="margin-top:8px;">
+    <button class="btn secondary small" id="clearSelUpdateBtn">選択をクリア</button>
+  </div>
+</section>
+
+<section>
+  <h2>3. 既存商品データを読み込んで編集(任意)</h2>
+  <p class="hint">Matrixifyでエクスポートした既存商品のファイル(.xlsx または .csv)を読み込み、上の「選択して更新」で選んだ項目だけを含む更新用CSVを作成できます。新規にauPAYデータから変換する場合はこの手順は不要です。</p>
+  <div class="warn-box">
+    ⚠️ このモードで読み込んだ場合、「選択項目のみのCSVをダウンロード」のみご利用いただけます(画像・バリアント構成を丸ごと差し替える「Shopify用CSVをダウンロード」は使用できません)。
+  </div>
+  <input type="file" id="existingExportFile" accept=".xlsx,.csv">
+  <button class="btn secondary" id="loadExistingBtn" style="margin-left:8px;">読み込む</button>
+  <div id="existingLog" class="hint" style="margin-top:8px;"></div>
+</section>
+
+<section>
+  <h2>4. 変換実行</h2>
+  <div class="warn-box">
+    ⚠️ 注意: 「Shopify用CSVをダウンロード」はバリアント・画像を<b>REPLACE(一括で削除して差し替え)</b>するCSVです。既存商品と衝突するHandleが含まれる場合、その商品の既存バリアント・画像はすべて置き換わります。取込前に対象商品を必ずご確認ください。
+  </div>
+  <button class="btn" id="convertBtn">CSVを変換</button>
+  <button class="btn secondary" id="downloadBtn" disabled="">Shopify用CSVをダウンロード</button>
+  <button class="btn secondary" id="downloadSelectedBtn" disabled="">選択項目のみのCSVをダウンロード</button>
+  <div id="log"></div>
+  <div id="summary" class="summary"></div>
+  <div id="warnList" class="warn-list"></div>
+  <div id="preview-wrap"></div>
+</section>
+
+<script>
+const STORE_NAMES = ['DigKag', 'リコメン堂', 'Branchee Beaute', 'KITCHENサジェスト', 'GraSUS', 'madokara', 'ハコモノヤ'];
+
+const DIGKAG_TYPE_RULES = [
+  ['キッチンカウンター', 'キッチンカウンター'],
+  ['食器棚', '食器棚'],
+  ['こたつ', 'こたつ'],
+  ['コレクションケース', 'コレクションケース'],
+  ['センターテーブル', 'センターテーブル'],
+  ['ダイニングテーブルセット', 'ダイニングセット'],
+  ['ダイニングセット', 'ダイニングセット'],
+  ['ダイニングテーブル', 'ダイニングテーブル'],
+  ['ダイニングチェア', 'ダイニングチェア'],
+  ['ダイニングベンチ', 'ダイニングチェア'],
+  ['テレビ台', 'テレビ台'],
+  ['テレビボード', 'テレビ台'],
+  ['ソファ', 'ソファー'],
+];
+const DIGKAG_TAG_RULES = [
+  { field: 'itemOption', condition: '配達日時指定は不可', targetField: 'Tags', value: '配送希望日時指定不可' },
+];
+
+function defaultTypeRules(name) {
+  return name === 'DigKag' ? DIGKAG_TYPE_RULES.map(r => r.slice()) : [];
+}
+function defaultTagRules(name) {
+  return name === 'DigKag' ? DIGKAG_TAG_RULES.map(r => ({ ...r })) : [];
+}
+
+// 旧形式( {field, condition, tagValue} / 出力先=Tags固定 )で保存されたルールを新形式に移行する
+function migrateTagRule(r) {
+  if (r && r.targetField === undefined && r.tagValue !== undefined) {
+    return { field: r.field || '', condition: r.condition || '', targetField: 'Tags', value: r.tagValue || '' };
+  }
+  return { field: r.field || '', condition: r.condition || '', targetField: r.targetField !== undefined ? r.targetField : 'Tags', value: r.value !== undefined ? r.value : '' };
+}
+
+const stores = {};
+STORE_NAMES.forEach(name => {
+  stores[name] = {
+    typeRules: defaultTypeRules(name),
+    tagRules: defaultTagRules(name),
+  };
+});
+let currentStore = 'DigKag';
+
+// 納期管理番号マスタ(全店舗共通)。楽天_納期管理番号 = auPAYのstockShippingDayId / choicesStockShippingDayId と同一の採番。
+// 「納期管理番号マスタ.csv」のShopify_納期文言列より(2026-08-13時点)。
+const LEADTIME_MASTER_DEFAULT = [
+  ['1', '即日発送予定(土日祝除く14時までのご注文)'],
+  ['2', '通常1～3日以内に発送予定(土日祝除く)'],
+  ['3', '通常2～4日以内に発送予定(土日祝除く)'],
+  ['4', '通常3～5日以内に発送予定(土日祝除く)'],
+  ['5', '通常4～6日以内に発送予定(土日祝除く)'],
+  ['6', '通常1週間前後で発送予定'],
+  ['7', '通常10日前後で発送予定'],
+  ['8', '通常2週間前後で発送予定'],
+  ['9', '通常3週間前後で発送予定'],
+  ['10', '通常1ヶ月前後で発送予定'],
+  ['11', '翌日発送予定(土日祝除く14時までのご注文)'],
+  ['12', '通常4ヶ月前後で発送予定'],
+  ['13', '通常2ヶ月前後で発送予定'],
+  ['14', '通常45日前後で発送予定'],
+  ['15', '即日発送予定(土日祝除く12時までのご注文)'],
+  ['16', '通常6ヶ月前後で発送予定'],
+  ['17', '13時までのご注文で翌日発送予定(土日祝除)'],
+  ['18', '通常3～7日以内に発送予定(土日祝除く)'],
+  ['19', '翌営業日発送(土日祝除く14時までのご注文)'],
+  ['20', '即日発送予定(日祝除く14時までのご注文)'],
+  ['21', '通常3ヶ月前後で発送予定'],
+  ['22', '【配送日指定不可】通常2～3営業日で発送'],
+  ['23', '【配送日指定不可】通常3～4営業日で発送'],
+  ['24', '【配送日指定不可】通常4～5営業日で発送'],
+  ['25', '【配送日指定不可】通常5～6営業日で発送'],
+  ['26', '【配送日指定不可】通常1週間程で発送予定'],
+  ['27', '【配送日指定不可】通常10営業日前後で発送'],
+  ['28', '【配送日指定不可】通常2週間程で発送予定'],
+  ['29', '【配送日指定不可】通常3週間程で発送予定'],
+  ['30', '【配送日指定不可】通常1ヶ月程で発送予定'],
+  ['31', '【配送日時指定不可】翌日発送(土日祝除く)'],
+  ['32', '1月上旬出荷予定'],
+  ['33', '1月中旬出荷予定'],
+  ['34', '1月下旬出荷予定'],
+  ['35', '2月上旬出荷予定'],
+  ['36', '2月中旬出荷予定'],
+  ['37', '2月下旬出荷予定'],
+  ['38', '3月上旬出荷予定'],
+  ['39', '3月中旬出荷予定'],
+  ['40', '3月下旬出荷予定'],
+  ['41', '4月上旬出荷予定'],
+  ['42', '4月中旬出荷予定'],
+  ['43', '4月下旬出荷予定'],
+  ['44', '5月上旬出荷予定'],
+  ['45', '5月中旬出荷予定'],
+  ['46', '5月下旬出荷予定'],
+  ['47', '6月上旬出荷予定'],
+  ['48', '6月中旬出荷予定'],
+  ['49', '6月下旬出荷予定'],
+  ['50', '7月上旬出荷予定'],
+  ['51', '7月中旬出荷予定'],
+  ['52', '7月下旬出荷予定'],
+  ['53', '8月上旬出荷予定'],
+  ['54', '8月中旬出荷予定'],
+  ['55', '8月下旬出荷予定'],
+  ['56', '9月上旬出荷予定'],
+  ['57', '9月中旬出荷予定'],
+  ['58', '9月下旬出荷予定'],
+  ['59', '10月上旬出荷予定'],
+  ['60', '10月中旬出荷予定'],
+  ['61', '10月下旬出荷予定'],
+  ['62', '11月上旬出荷予定'],
+  ['63', '11月中旬出荷予定'],
+  ['64', '11月下旬出荷予定'],
+  ['65', '12月上旬出荷予定'],
+  ['66', '12月中旬出荷予定'],
+  ['67', '12月下旬出荷予定'],
+  ['70', '1～3営業日以内に出荷予定(日時指定不可)'],
+  ['71', '1～4営業日以内に出荷予定(日時指定不可)'],
+  ['72', '1～5営業日以内に出荷予定(日時指定不可)'],
+  ['73', '2～5営業日以内に出荷予定(日時指定不可)'],
+  ['74', '3～6営業日以内に出荷予定(日時指定不可)'],
+  ['75', '4～8営業日以内に出荷予定(日時指定不可)'],
+  ['76', '5～11営業日以内に出荷予定(日時指定不可)'],
+  ['77', '6～15営業日以内に出荷予定(日時指定不可)'],
+  ['78', '12～22営業日以内に出荷予定(日時指定不可)'],
+  ['79', 'メーカー入荷待ち（予約注文）'],
+  ['80', '受注生産（1ヶ月程での発送予定）'],
+  ['81', '受注生産（2ヶ月程での発送予定）'],
+  ['82', '受注生産（4ヶ月程での発送予定）'],
+  ['83', '即日発送予定(土日祝除く14時までのご注文)'],
+  ['84', '即日発送予定(土日祝除く14時までのご注文)'],
+  ['85', '即日発送予定(土日祝除く14時までのご注文)'],
+  ['86', '即日発送予定(土日祝除く14時までのご注文)'],
+];
+let leadtimeMaster = LEADTIME_MASTER_DEFAULT.map(r => r.slice());
+
+function lookupLeadtimeMaster(id) {
+  const key = (id || '').toString().trim();
+  if (!key) return '';
+  const found = leadtimeMaster.find(r => r[0] === key);
+  return found ? found[1] : '';
+}
+
+const RULES_STORAGE_KEY = 'auPayConverter_rules_v1';
+
+function saveRulesToStorage() {
+  try {
+    localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify({ stores, leadtimeMaster }));
+  } catch (e) { console.error('設定の保存に失敗しました', e); }
+}
+
+function loadRulesFromStorage() {
+  try {
+    const raw = localStorage.getItem(RULES_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    // 新形式 { stores, leadtimeMaster } / 旧形式(storesオブジェクトを直接保存)の両方に対応
+    const savedStores = (parsed && parsed.stores) ? parsed.stores : parsed;
+    STORE_NAMES.forEach(name => {
+      if (savedStores && savedStores[name]) {
+        if (Array.isArray(savedStores[name].typeRules)) stores[name].typeRules = savedStores[name].typeRules;
+        if (Array.isArray(savedStores[name].tagRules)) stores[name].tagRules = savedStores[name].tagRules.map(migrateTagRule);
+      }
+    });
+    if (parsed && Array.isArray(parsed.leadtimeMaster)) {
+      leadtimeMaster = parsed.leadtimeMaster;
+    }
+  } catch (e) { console.error('設定の読込に失敗しました', e); }
+}
+
+function flashSaveStatus(elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = '✓ 保存しました';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ''; }, 2000);
+}
+
+// nj-albcsofaの実エクスポートCSVで確認済み(cross-sell / _upsell-items-similar / product-badge)。
+// それ以外はキー名からの推定です。実データと食い違う場合は下記を修正してください。
+const PRODUCT_METAFIELD_COLUMNS = [
+  'Metafield: custom.cross-sell [single_line_text_field]',              // 合わせ買い用タイトル ✓確認済み
+  'Metafield: custom._upsell-items-similar [list.product_reference]',   // 合わせて買いたい ✓確認済み(値はHandleをカンマ区切り)
+  'Metafield: custom.series-sell [single_line_text_field]',             // 同シリーズ用のタイトル (推定)
+  'Metafield: custom._upsell-items-series [list.product_reference]',    // この商品のシリーズはこちら (推定, Handleカンマ区切り)
+  'Metafield: custom.other-size [single_line_text_field]',              // サイズ違い用タイトル (推定)
+  'Metafield: custom._upsell-items-size [list.product_reference]',      // その他のサイズはこちら (推定, Handleカンマ区切り)
+  'Metafield: custom.coupon [boolean]',                                 // クーポン対象フラグ (推定)
+  'Metafield: custom.narrow-down-seatsize [list.single_line_text_field]', // 大きさで絞り込む (推定)
+  'Metafield: custom.narrow-down-widthsize [list.dimension]',           // サイズ（幅）で絞り込み (推定)
+  'Metafield: custom.narrow-down-heightsize [list.dimension]',          // サイズ（高さ）で絞り込み (推定)
+  'Metafield: custom.narrow-down-material [list.single_line_text_field]', // 素材に絞り込み (推定)
+  'Metafield: custom.narrow-down-shape [single_line_text_field]',       // 形で絞り込む (推定)
+  'Metafield: custom.narrow-down-option [list.single_line_text_field]', // オプション品 (推定)
+  'Metafield: custom._related-cate [list.collection_reference]',        // 関連カテゴリ (推定)
+  'Metafield: custom.delivery-date [single_line_text_field]',           // 配送日時指定フラグ (推定)
+  'Metafield: custom.product-badge [list.single_line_text_field]',      // バッジアイコンテキスト ✓確認済み
+];
+
+const HEADER = ['Handle','Title','Body (HTML)','Vendor','Product Category','Type','Tags','Published',
+'Option1 Name','Option1 Value','Option2 Name','Option2 Value','Option3 Name','Option3 Value',
+'Variant SKU','Variant Grams','Variant Inventory Tracker','Variant Inventory Qty','Variant Inventory Policy',
+'Variant Fulfillment Service','Variant Price','Variant Compare At Price','Variant Requires Shipping',
+'Variant Taxable','Variant Barcode','Image Src','Image Position','Image Alt Text','Gift Card','SEO Title',
+'SEO Description','Google Shopping / Google Product Category','Google Shopping / Gender',
+'Google Shopping / Age Group','Google Shopping / MPN','Google Shopping / Condition',
+'Google Shopping / Custom Product','Google Shopping / Custom Label 0','Google Shopping / Custom Label 1',
+'Google Shopping / Custom Label 2','Google Shopping / Custom Label 3','Google Shopping / Custom Label 4',
+'Variant Image','Variant Weight Unit','Variant Tax Code','Cost per item','Included / Japan','Price / Japan',
+'Compare At Price / Japan','Included / International','Price / International','Compare At Price / International',
+'Status','Variant Metafield: custom.leadtime [single_line_text_field]',
+'Variant Command','Image Command'].concat(PRODUCT_METAFIELD_COLUMNS);
+
+function renderStoreTabs() {
+  const el = document.getElementById('storeTabs');
+  el.innerHTML = '';
+  STORE_NAMES.forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'store-tab' + (name === currentStore ? ' active' : '');
+    b.textContent = name;
+    b.addEventListener('click', () => selectStore(name));
+    el.appendChild(b);
+  });
+}
+
+function selectStore(name) {
+  currentStore = name;
+  document.getElementById('vendor').value = name;
+  typeRulesExpanded = false;
+  renderStoreTabs();
+  renderTypeRules();
+  renderTagRules();
+}
+
+let typeRulesExpanded = false;
+const TYPE_RULES_COLLAPSE_LIMIT = 10;
+
+function renderTypeRules() {
+  const rules = stores[currentStore].typeRules;
+  const tbody = document.querySelector('#typeRulesTable tbody');
+  tbody.innerHTML = '';
+  const showAll = typeRulesExpanded || rules.length <= TYPE_RULES_COLLAPSE_LIMIT;
+  const visibleCount = showAll ? rules.length : TYPE_RULES_COLLAPSE_LIMIT;
+  rules.forEach((r, i) => {
+    if (i >= visibleCount) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" data-i="' + i + '" data-f="kw" value="' + (r[0] || '').replace(/"/g,'&quot;') + '"></td>' +
+      '<td><input type="text" data-i="' + i + '" data-f="ty" value="' + (r[1] || '').replace(/"/g,'&quot;') + '"></td>' +
+      '<td><button class="btn secondary small" data-del="' + i + '">削除</button></td>';
+    tbody.appendChild(tr);
+  });
+  if (rules.length > TYPE_RULES_COLLAPSE_LIMIT) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.style.textAlign = 'center';
+    const btn = document.createElement('button');
+    btn.className = 'btn secondary small';
+    btn.textContent = showAll
+      ? '▲ 折りたたむ'
+      : '▼ 残り' + (rules.length - TYPE_RULES_COLLAPSE_LIMIT) + '件を表示';
+    btn.addEventListener('click', () => {
+      typeRulesExpanded = !typeRulesExpanded;
+      renderTypeRules();
+    });
+    td.appendChild(btn);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+document.querySelector('#typeRulesTable tbody').addEventListener('input', e => {
+  const i = +e.target.dataset.i, f = e.target.dataset.f;
+  const rules = stores[currentStore].typeRules;
+  if (f === 'kw') rules[i][0] = e.target.value;
+  if (f === 'ty') rules[i][1] = e.target.value;
+  saveRulesToStorage();
+  flashSaveStatus('typeSaveStatus');
+});
+document.querySelector('#typeRulesTable tbody').addEventListener('click', e => {
+  if (e.target.dataset.del !== undefined) {
+    stores[currentStore].typeRules.splice(+e.target.dataset.del, 1);
+    renderTypeRules();
+    saveRulesToStorage();
+    flashSaveStatus('typeSaveStatus');
+  }
+});
+document.getElementById('addTypeRuleBtn').addEventListener('click', () => {
+  stores[currentStore].typeRules.push(['', '']);
+  renderTypeRules();
+  saveRulesToStorage();
+  flashSaveStatus('typeSaveStatus');
+});
+document.getElementById('resetTypeRulesBtn').addEventListener('click', () => {
+  if (!confirm(currentStore + 'のType判定ルールを初期設定に戻します。よろしいですか？')) return;
+  stores[currentStore].typeRules = defaultTypeRules(currentStore);
+  renderTypeRules();
+  saveRulesToStorage();
+  flashSaveStatus('typeSaveStatus');
+});
+
+let leadtimeMasterExpanded = false;
+const LEADTIME_MASTER_COLLAPSE_LIMIT = 10;
+
+function renderLeadtimeMaster() {
+  const tbody = document.querySelector('#leadtimeMasterTable tbody');
+  tbody.innerHTML = '';
+  const showAll = leadtimeMasterExpanded || leadtimeMaster.length <= LEADTIME_MASTER_COLLAPSE_LIMIT;
+  const visibleCount = showAll ? leadtimeMaster.length : LEADTIME_MASTER_COLLAPSE_LIMIT;
+  leadtimeMaster.forEach((r, i) => {
+    if (i >= visibleCount) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><input type="text" data-i="' + i + '" data-f="id" value="' + (r[0] || '').replace(/"/g,'&quot;') + '"></td>' +
+      '<td><input type="text" data-i="' + i + '" data-f="text" value="' + (r[1] || '').replace(/"/g,'&quot;') + '"></td>' +
+      '<td><button class="btn secondary small" data-del="' + i + '">削除</button></td>';
+    tbody.appendChild(tr);
+  });
+  if (leadtimeMaster.length > LEADTIME_MASTER_COLLAPSE_LIMIT) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.style.textAlign = 'center';
+    const btn = document.createElement('button');
+    btn.className = 'btn secondary small';
+    btn.textContent = showAll
+      ? '▲ 折りたたむ'
+      : '▼ 残り' + (leadtimeMaster.length - LEADTIME_MASTER_COLLAPSE_LIMIT) + '件を表示';
+    btn.addEventListener('click', () => {
+      leadtimeMasterExpanded = !leadtimeMasterExpanded;
+      renderLeadtimeMaster();
+    });
+    td.appendChild(btn);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+document.querySelector('#leadtimeMasterTable tbody').addEventListener('input', e => {
+  const i = +e.target.dataset.i, f = e.target.dataset.f;
+  if (f === 'id') leadtimeMaster[i][0] = e.target.value;
+  if (f === 'text') leadtimeMaster[i][1] = e.target.value;
+  saveRulesToStorage();
+  flashSaveStatus('leadtimeMasterSaveStatus');
+});
+document.querySelector('#leadtimeMasterTable tbody').addEventListener('click', e => {
+  if (e.target.dataset.del !== undefined) {
+    leadtimeMaster.splice(+e.target.dataset.del, 1);
+    renderLeadtimeMaster();
+    saveRulesToStorage();
+    flashSaveStatus('leadtimeMasterSaveStatus');
+  }
+});
+document.getElementById('addLeadtimeMasterBtn').addEventListener('click', () => {
+  leadtimeMaster.push(['', '']);
+  renderLeadtimeMaster();
+  saveRulesToStorage();
+  flashSaveStatus('leadtimeMasterSaveStatus');
+});
+document.getElementById('resetLeadtimeMasterBtn').addEventListener('click', () => {
+  if (!confirm('納期管理番号マスタを初期設定に戻します。よろしいですか？')) return;
+  leadtimeMaster = LEADTIME_MASTER_DEFAULT.map(r => r.slice());
+  renderLeadtimeMaster();
+  saveRulesToStorage();
+  flashSaveStatus('leadtimeMasterSaveStatus');
+});
+
+function renderTagRules() {
+  const rules = stores[currentStore].tagRules;
+  const el = document.getElementById('tagRulesList');
+  el.innerHTML = '';
+  rules.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'tagrule-sentence row';
+    div.style.alignItems = 'center';
+    div.innerHTML =
+      '<div style="max-width:140px;"><input type="text" data-i="' + i + '" data-f="field" value="' + (r.field||'').replace(/"/g,'&quot;') + '" placeholder="検索対象列"></div>' +
+      '<div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div>' +
+      '<div style="max-width:180px;"><input type="text" data-i="' + i + '" data-f="condition" value="' + (r.condition||'').replace(/"/g,'&quot;') + '" placeholder="条件文言"></div>' +
+      '<div style="flex:0 0 auto; max-width:130px; white-space:nowrap;">の文言があれば、</div>' +
+      '<div style="max-width:150px;"><input type="text" data-i="' + i + '" data-f="targetField" list="allHeaderColumns" value="' + (r.targetField||'').replace(/"/g,'&quot;') + '" placeholder="出力先列"></div>' +
+      '<div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div>' +
+      '<div style="max-width:180px;"><input type="text" data-i="' + i + '" data-f="value" value="' + (r.value||'').replace(/"/g,'&quot;') + '" placeholder="設定する値"></div>' +
+      '<div style="flex:0 0 auto; max-width:60px; white-space:nowrap;">を設定</div>' +
+      '<div style="flex:0 0 auto;"><button class="btn secondary small" data-del="' + i + '">削除</button></div>';
+    el.appendChild(div);
+  });
+}
+
+document.getElementById('tagRulesList').addEventListener('input', e => {
+  const i = +e.target.dataset.i, f = e.target.dataset.f;
+  if (f) stores[currentStore].tagRules[i][f] = e.target.value;
+  saveRulesToStorage();
+  flashSaveStatus('tagSaveStatus');
+});
+document.getElementById('tagRulesList').addEventListener('click', e => {
+  if (e.target.dataset.del !== undefined) {
+    stores[currentStore].tagRules.splice(+e.target.dataset.del, 1);
+    renderTagRules();
+    saveRulesToStorage();
+    flashSaveStatus('tagSaveStatus');
+  }
+});
+document.getElementById('addTagRuleBtn').addEventListener('click', () => {
+  stores[currentStore].tagRules.push({ field: 'itemOption', condition: '', targetField: 'Tags', value: '' });
+  renderTagRules();
+  saveRulesToStorage();
+  flashSaveStatus('tagSaveStatus');
+});
+document.getElementById('resetTagRulesBtn').addEventListener('click', () => {
+  if (!confirm(currentStore + 'のTagsルールを初期設定に戻します。よろしいですか？')) return;
+  stores[currentStore].tagRules = defaultTagRules(currentStore);
+  renderTagRules();
+  saveRulesToStorage();
+  flashSaveStatus('tagSaveStatus');
+});
+
+function csvField(v) {
+  v = v === undefined || v === null ? '' : String(v);
+  if (/[",\n\r]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+  return v;
+}
+function downloadCSV(filename, headerCols, rows) {
+  const lines = [headerCols.map(csvField).join(',')];
+  rows.forEach(r => lines.push(r.map(csvField).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function readFileAsUTF8(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new TextDecoder('utf-8').decode(reader.result));
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+document.getElementById('exportTypeRulesBtn').addEventListener('click', () => {
+  downloadCSV(currentStore + '_Type判定ルール.csv', ['キーワード', 'Type'], stores[currentStore].typeRules);
+});
+document.getElementById('importTypeRulesBtn').addEventListener('click', () => {
+  document.getElementById('importTypeRulesFile').click();
+});
+document.getElementById('importTypeRulesFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await readFileAsUTF8(file);
+  const rows = parseCSV(text.replace(/^﻿/, ''));
+  const newRules = rows.slice(1).filter(r => r.length >= 2 && (r[0] || r[1])).map(r => [r[0], r[1]]);
+  stores[currentStore].typeRules = newRules;
+  renderTypeRules();
+  saveRulesToStorage();
+  flashSaveStatus('typeSaveStatus');
+  e.target.value = '';
+});
+
+document.getElementById('exportLeadtimeMasterBtn').addEventListener('click', () => {
+  downloadCSV('納期管理番号マスタ.csv', ['管理番号', 'Shopify納期文言'], leadtimeMaster);
+});
+document.getElementById('importLeadtimeMasterBtn').addEventListener('click', () => {
+  document.getElementById('importLeadtimeMasterFile').click();
+});
+document.getElementById('importLeadtimeMasterFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await readFileAsUTF8(file);
+  const rows = parseCSV(text.replace(/^﻿/, ''));
+  // 「納期管理番号マスタ.csv」の元フォーマット(楽天_納期管理番号,楽天_出荷リードタイム管理名称,Yahoo_発送日情報管理番号,Shopify_納期文言,mercari_納期文言)
+  // にも、シンプルな2列形式(管理番号,Shopify納期文言)にも対応する。
+  const header = rows[0] || [];
+  const shopifyColIdx = header.findIndex(h => (h || '').includes('Shopify'));
+  const idColIdx = 0;
+  const textColIdx = shopifyColIdx !== -1 ? shopifyColIdx : 1;
+  const newMaster = rows.slice(1)
+    .filter(r => r.length > Math.max(idColIdx, textColIdx) && r[idColIdx] && r[textColIdx])
+    .map(r => [r[idColIdx], r[textColIdx]]);
+  leadtimeMaster = newMaster;
+  renderLeadtimeMaster();
+  saveRulesToStorage();
+  flashSaveStatus('leadtimeMasterSaveStatus');
+  e.target.value = '';
+});
+
+document.getElementById('exportTagRulesBtn').addEventListener('click', () => {
+  downloadCSV(currentStore + '_更新ルール.csv', ['検索対象列', '条件文言', '出力先列', '設定する値'],
+    stores[currentStore].tagRules.map(r => [r.field, r.condition, r.targetField, r.value]));
+});
+document.getElementById('importTagRulesBtn').addEventListener('click', () => {
+  document.getElementById('importTagRulesFile').click();
+});
+document.getElementById('importTagRulesFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await readFileAsUTF8(file);
+  const rows = parseCSV(text.replace(/^﻿/, ''));
+  // 新形式(検索対象列,条件文言,出力先列,設定する値)/ 旧形式(対象項目,条件文言,付与タグ ※出力先はTags固定)の両方に対応
+  const newRules = rows.slice(1).filter(r => r.length >= 3 && (r[0] || r[1] || r[2] || r[3]))
+    .map(r => r.length >= 4
+      ? { field: r[0], condition: r[1], targetField: r[2] || 'Tags', value: r[3] }
+      : { field: r[0], condition: r[1], targetField: 'Tags', value: r[2] });
+  stores[currentStore].tagRules = newRules;
+  renderTagRules();
+  saveRulesToStorage();
+  flashSaveStatus('tagSaveStatus');
+  e.target.value = '';
+});
+
+function readFileAsShiftJIS(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { resolve(new TextDecoder('shift_jis').decode(reader.result)); }
+      catch (e) { reject(e); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ''));
+}
+
+function toRecords(rows) {
+  const header = rows[0];
+  const records = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const rec = {};
+    header.forEach((h, i) => rec[h] = row[i] !== undefined ? row[i] : '');
+    records.push(rec);
+  }
+  return { records };
+}
+
+function extractBodyAndBanner(desc) {
+  if (!desc) return ['', ''];
+  const marker = '</center>';
+  const idxc = desc.lastIndexOf(marker);
+  if (idxc === -1) return [desc.trim(), ''];
+  const head = desc.slice(0, idxc);
+  let tail = desc.slice(idxc + marker.length);
+  const imgs = [...head.matchAll(/<img src="([^"]+)"/g)].map(m => m[1]);
+  const banner = imgs.length ? imgs[imgs.length - 1] : '';
+  tail = tail.trim().replace(/^(<br\s*\/?>)+/i, '');
+  return [tail.trim(), banner];
+}
+
+function extractWeightGrams(desc) {
+  if (!desc) return [null, 'no marker'];
+  const m = desc.match(/■重量[:：]?\s*(?:<br>\s*)?([\s\S]*?)(?=■|$)/);
+  if (!m) return [null, 'no marker'];
+  let seg = m[1].replace(/^(<br\s*\/?>|\s)+/, '');
+  const m2 = seg.match(/^約?\s*([0-9]+(?:\.[0-9]+)?)\s*[kK][gG]/);
+  if (m2) {
+    const rest = seg.slice(m2[0].length);
+    if (/^(<br\s*\/?>|\s)*$/.test(rest)) {
+      return [String(Math.round(parseFloat(m2[1]) * 1000)), 'ok'];
+    }
+  }
+  return [null, 'complex: ' + seg.slice(0, 60)];
+}
+
+function normalizeLeadtime(txt) {
+  if (!txt) return '';
+  txt = txt.replace(/〜/g, '～');
+  if (!txt.includes('予定')) txt = txt.replace('出荷(', '出荷予定(');
+  return txt;
+}
+
+// 納期の決定優先順位:
+//   1. 納期管理番号マスタ(stockShippingDayId / choicesStockShippingDayId が一致する場合。最も信頼できる)
+//   2. auPAYデータの納期表示テキスト(stockShippingDayDispTxt / choicesStockShippingDayDispTxt)
+// どちらも見つからない場合は空欄のまま出力し、'not found' ステータスを返す(呼び出し側で警告リストに追加する)。
+// 自動でデフォルト文言を補完すると誤った納期を表示してしまう恐れがあるため、検出のみ行う。
+function computeLeadtime(txt, shippingDayId) {
+  const master = lookupLeadtimeMaster(shippingDayId);
+  if (master) return [master, 'ok'];
+  const normalized = normalizeLeadtime(txt);
+  if (normalized) return [normalized, 'ok'];
+  return ['', 'not found'];
+}
+
+function guessType(name) {
+  const rules = stores[currentStore].typeRules;
+  for (const [kw, ty] of rules) {
+    if (kw && name.includes(kw)) return ty;
+  }
+  return '';
+}
+
+// Tagsルール(汎用の更新ルール)を評価する。
+// 出力先列が"Tags"のものは一致した値をすべてカンマ区切りで蓄積し、
+// それ以外の列は一致した最後のルールの値で上書きする(otherFields)。
+function computeFieldRules(record) {
+  const rules = stores[currentStore].tagRules;
+  const tagList = [];
+  const otherFields = {};
+  rules.forEach(r => {
+    if (!r.field || !r.condition || !r.targetField || !r.value) return;
+    const matchKeys = Object.keys(record).filter(k => k.startsWith(r.field));
+    const hit = matchKeys.some(k => (record[k] || '').includes(r.condition));
+    if (!hit) return;
+    if (r.targetField === 'Tags') {
+      if (!tagList.includes(r.value)) tagList.push(r.value);
+    } else {
+      otherFields[r.targetField] = r.value;
+    }
+  });
+  return { tags: tagList.join(','), otherFields };
+}
+
+function parseColorOption(itemOptions) {
+  for (const opt of itemOptions) {
+    if (opt.startsWith('カラー:') || opt.startsWith('カラー：')) {
+      const parts = opt.split(/[:：]/);
+      const name = parts[0];
+      const choices = parts.slice(1).filter(c => c.trim());
+      if (choices.length) return [name, choices];
+    }
+  }
+  return [null, null];
+}
+
+function blankRow() {
+  const r = {};
+  HEADER.forEach(h => r[h] = '');
+  return r;
+}
+
+let lastOutputRows = null;
+let dataSourceMode = 'aupay'; // 'aupay' = auPAYからの新規変換 / 'existing' = 既存エクスポート読込
+
+function populateHeaderDatalist() {
+  const dl = document.getElementById('allHeaderColumns');
+  if (!dl) return;
+  dl.innerHTML = HEADER.map(h => '<option value="' + h.replace(/"/g,'&quot;') + '">').join('');
+}
+
+document.getElementById('clearSelUpdateBtn').addEventListener('click', () => {
+  ['selUpdatePrice', 'selUpdateWeight', 'selUpdateTitle', 'selUpdateTags', 'selUpdateType'].forEach(id => {
+    document.getElementById(id).checked = false;
+  });
+  ['selUpdateFree1', 'selUpdateFree2', 'selUpdateFree3'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+});
+
+document.getElementById('convertBtn').addEventListener('click', async () => {
+  const log = document.getElementById('log');
+  log.style.display = 'block';
+  log.textContent = '読み込み中...';
+  dataSourceMode = 'aupay';
+  document.getElementById('downloadBtn').disabled = true;
+
+  const itemFileEl = document.getElementById('itemFile');
+  const stockFileEl = document.getElementById('stockFile');
+  if (!itemFileEl.files[0] || !stockFileEl.files[0]) {
+    log.textContent = '商品CSVと在庫CSVの両方を選択してください。';
+    return;
+  }
+
+  try {
+    const [itemText, stockText] = await Promise.all([
+      readFileAsShiftJIS(itemFileEl.files[0]),
+      readFileAsShiftJIS(stockFileEl.files[0]),
+    ]);
+
+    const itemRows = parseCSV(itemText);
+    const stockRows = parseCSV(stockText);
+    const { records: items } = toRecords(itemRows);
+    const { records: stockRecs } = toRecords(stockRows);
+
+    const stockByCode = {};
+    stockRecs.forEach(sr => {
+      const code = sr.itemCode;
+      if (!code) return;
+      (stockByCode[code] = stockByCode[code] || []).push(sr);
+    });
+    Object.values(stockByCode).forEach(arr => {
+      arr.sort((a, b) => (+(a.choicesStockHorizontalSeq || 0) - +(b.choicesStockHorizontalSeq || 0)) ||
+                          (+(a.choicesStockVerticalSeq || 0) - +(b.choicesStockVerticalSeq || 0)));
+    });
+
+    const vendor = document.getElementById('vendor').value || currentStore;
+    const markup = parseFloat(document.getElementById('markup').value) || 1.10;
+    const markupInt = Math.round(markup * 100);
+    const skipList = document.getElementById('skipList').value
+      .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+
+    const outRows = [];
+    const weightReview = [];
+    const leadtimeReview = [];
+    const skipped = [];
+
+    for (const it of items) {
+      const mgmtId = (it.itemManagementId || '').trim();
+      const itemCode = (it.itemCode || '').trim();
+      if (!mgmtId) continue;
+      if (skipList.includes(mgmtId) || skipList.includes(itemCode)) { skipped.push(mgmtId); continue; }
+
+      const handle = itemCode;
+      const title = (it.itemName || '').replace('【送料無料】', '');
+      const [bodyText, banner] = extractBodyAndBanner(it.descriptionForPC);
+      const [weightG, wstatus] = extractWeightGrams(it.descriptionForPC);
+      if (wstatus !== 'ok') weightReview.push([mgmtId, wstatus]);
+      const price = it.itemPrice ? Math.floor((+it.itemPrice) * markupInt / 100) : '';
+
+      const images = [];
+      for (let n = 1; n <= 20; n++) {
+        const u = (it['imageUrl' + n] || '').trim();
+        if (u) images.push(u);
+      }
+      if (banner) images.push(banner);
+      const galleryHtml = images.map(u => '<img src="' + u + '"><br>').join('');
+      const bodyHtml = bodyText + '<br><br>' + galleryHtml;
+
+      const fieldRules = computeFieldRules(it);
+
+      const itemOptions = [];
+      for (let n = 1; n <= 20; n++) {
+        const o = (it['itemOption' + n] || '').trim();
+        if (o) itemOptions.push(o);
+      }
+
+      const stockR = stockByCode[itemCode] || [];
+      const hasHorizontal = stockR.some(sr => (sr.choicesStockHorizontalName || '').trim());
+      const hasVertical = stockR.some(sr => (sr.choicesStockVerticalName || '').trim());
+
+      const variants = [];
+      if (hasHorizontal && hasVertical) {
+        const opt1Name = it.choicesStockHorizontalItemName || 'カラー';
+        const opt2Name = it.choicesStockVerticalItemName || 'オプション';
+        stockR.forEach(sr => {
+          const [leadtime, ltStatus] = computeLeadtime(sr.choicesStockShippingDayDispTxt || '', sr.choicesStockShippingDayId);
+          if (ltStatus !== 'ok') {
+            leadtimeReview.push([mgmtId, [sr.choicesStockHorizontalName, sr.choicesStockVerticalName].filter(Boolean).join('/')]);
+          }
+          variants.push({
+            opt1Name, opt1Val: sr.choicesStockHorizontalName, opt2Name, opt2Val: sr.choicesStockVerticalName,
+            qty: sr.choicesStockCount || '0', leadtime,
+          });
+        });
+      } else if (hasHorizontal) {
+        const opt1Name = it.choicesStockHorizontalItemName || 'カラー';
+        stockR.forEach(sr => {
+          const [leadtime, ltStatus] = computeLeadtime(sr.choicesStockShippingDayDispTxt || '', sr.choicesStockShippingDayId);
+          if (ltStatus !== 'ok') leadtimeReview.push([mgmtId, sr.choicesStockHorizontalName]);
+          variants.push({
+            opt1Name, opt1Val: sr.choicesStockHorizontalName, opt2Name: '', opt2Val: '',
+            qty: sr.choicesStockCount || '0', leadtime,
+          });
+        });
+      } else {
+        const [optName, choices] = parseColorOption(itemOptions);
+        const [itemLeadtime, ltStatus] = computeLeadtime(it.stockShippingDayDispTxt || '', it.stockShippingDayId);
+        if (ltStatus !== 'ok') leadtimeReview.push([mgmtId, '']);
+        const qty = it.stockCount || '0';
+        if (choices) {
+          choices.forEach(c => variants.push({
+            opt1Name: optName, opt1Val: c, opt2Name: '', opt2Val: '', qty, leadtime: itemLeadtime,
+          }));
+        } else {
+          variants.push({ opt1Name: '', opt1Val: '', opt2Name: '', opt2Val: '', qty, leadtime: itemLeadtime });
+        }
+      }
+
+      variants.forEach((v, i) => {
+        const row = blankRow();
+        row.Handle = handle;
+        row['Option1 Value'] = v.opt1Val;
+        row['Option2 Value'] = v.opt2Val;
+        row['Variant SKU'] = mgmtId;
+        row['Variant Grams'] = weightG || '';
+        row['Variant Inventory Tracker'] = 'shopify';
+        row['Variant Inventory Qty'] = v.qty;
+        row['Variant Inventory Policy'] = 'deny';
+        row['Variant Fulfillment Service'] = 'manual';
+        row['Variant Price'] = price;
+        row['Variant Requires Shipping'] = 'TRUE';
+        row['Variant Taxable'] = 'FALSE';
+        row['Variant Metafield: custom.leadtime [single_line_text_field]'] = v.leadtime;
+        row['Variant Command'] = 'REPLACE';
+        if (i < images.length) {
+          row['Image Src'] = images[i];
+          row['Image Command'] = 'REPLACE';
+        }
+        if (i === 0) {
+          row.Title = title;
+          row['Body (HTML)'] = bodyHtml;
+          row.Vendor = vendor;
+          row.Type = guessType(it.itemName || '');
+          row.Tags = fieldRules.tags;
+          Object.keys(fieldRules.otherFields).forEach(f => {
+            if (Object.prototype.hasOwnProperty.call(row, f)) row[f] = fieldRules.otherFields[f];
+          });
+          row.Published = 'TRUE';
+          row['Option1 Name'] = v.opt1Name;
+          row['Option2 Name'] = v.opt2Name;
+          row['Google Shopping / Custom Product'] = 'TRUE';
+          row['Included / International'] = 'FALSE';
+          row.Status = 'active';
+        }
+        outRows.push(row);
+      });
+
+      images.slice(variants.length).forEach(img => {
+        const row = blankRow();
+        row.Handle = handle;
+        row['Image Src'] = img;
+        row['Image Command'] = 'REPLACE';
+        outRows.push(row);
+      });
+    }
+
+    lastOutputRows = outRows;
+    document.getElementById('downloadBtn').disabled = false;
+    document.getElementById('downloadSelectedBtn').disabled = false;
+
+    const distinctHandles = new Set(outRows.map(r => r.Handle)).size;
+    document.getElementById('summary').innerHTML =
+      '店舗: ' + currentStore + ' / 処理商品数: ' + distinctHandles + ' / 出力行数: ' + outRows.length +
+      (skipped.length ? ' / スキップ: ' + skipped.join(', ') : '');
+
+    const warnEl = document.getElementById('warnList');
+    const warnBlocks = [];
+    if (weightReview.length) {
+      warnBlocks.push('Variant Gramsを自動抽出できなかった商品(空欄で出力されます):<br>' +
+        weightReview.map(([mid, st]) => '・' + mid + ' — ' + st).join('<br>'));
+    }
+    if (leadtimeReview.length) {
+      warnBlocks.push('⚠️ 納期(Variant Metafield: custom.leadtime)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
+        leadtimeReview.map(([mid, opt]) => '・' + mid + (opt ? ' (' + opt + ')' : '')).join('<br>'));
+    }
+    warnEl.innerHTML = warnBlocks.join('<br><br>');
+
+    renderPreview(outRows);
+    log.style.display = 'none';
+  } catch (err) {
+    log.textContent = 'エラー: ' + err.message;
+    console.error(err);
+  }
+});
+
+function renderPreview(rows) {
+  const wrap = document.getElementById('preview-wrap');
+  const previewCols = ['Handle','Title','Type','Tags','Option1 Name','Option1 Value','Option2 Name','Option2 Value','Variant SKU','Variant Price','Variant Grams','Variant Inventory Qty','Image Src','Variant Command'];
+  let html = '<table class="preview"><thead><tr>' + previewCols.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
+  rows.slice(0, 60).forEach(r => {
+    html += '<tr>' + previewCols.map(c => '<td>' + (r[c] || '').toString().slice(0, 60) + '</td>').join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  if (rows.length > 60) html += '<p class="hint">先頭60行のみプレビュー表示(全' + rows.length + '行はダウンロードに含まれます)</p>';
+  wrap.innerHTML = html;
+}
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!lastOutputRows) return;
+  if (dataSourceMode !== 'aupay') {
+    alert('既存商品データ読込モードでは「Shopify用CSVをダウンロード」は使用できません。「選択項目のみのCSVをダウンロード」をご利用ください。');
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  downloadCSV('shopify_' + currentStore + '_' + today + '.csv', HEADER, lastOutputRows.map(r => HEADER.map(h => r[h])));
+});
+
+document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
+  if (!lastOutputRows) return;
+  const wantPrice = document.getElementById('selUpdatePrice').checked;
+  const wantWeight = document.getElementById('selUpdateWeight').checked;
+  const wantTitle = document.getElementById('selUpdateTitle').checked;
+  const wantTags = document.getElementById('selUpdateTags').checked;
+  const wantType = document.getElementById('selUpdateType').checked;
+  const freeNames = [
+    document.getElementById('selUpdateFree1').value,
+    document.getElementById('selUpdateFree2').value,
+    document.getElementById('selUpdateFree3').value,
+  ].map(s => (s || '').trim()).filter(Boolean);
+
+  if (!wantPrice && !wantWeight && !wantTitle && !wantTags && !wantType && freeNames.length === 0) {
+    alert('価格・重量・商品名・タグ・商品タイプ、または自由記載欄のいずれか1つ以上を指定してください。');
+    return;
+  }
+  const cols = ['Handle', 'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Variant SKU'];
+  if (wantPrice) cols.push('Variant Price');
+  if (wantWeight) cols.push('Variant Grams');
+  if (wantTitle) cols.push('Title');
+  if (wantTags) cols.push('Tags');
+  if (wantType) cols.push('Type');
+  freeNames.forEach(name => { if (!cols.includes(name)) cols.push(name); });
+  cols.push('Variant Command');
+
+  const rows = [];
+  let prevHandle = null;
+  lastOutputRows.forEach(r => {
+    if (!r.Handle || !r['Variant SKU']) return; // 画像専用行など、バリアント情報のない行は除外
+    const isFirst = r.Handle !== prevHandle;
+    prevHandle = r.Handle;
+    const out = {};
+    cols.forEach(c => out[c] = r[c] !== undefined ? r[c] : '');
+    out['Variant Command'] = 'MERGE';
+    if (!isFirst) {
+      if (cols.includes('Title')) out.Title = '';
+      if (cols.includes('Tags')) out.Tags = '';
+      if (cols.includes('Type')) out.Type = '';
+    }
+    rows.push(out);
+  });
+
+  const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  downloadCSV('shopify_' + currentStore + '_選択更新_' + today + '.csv', cols, rows.map(r => cols.map(c => r[c])));
+});
+
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function weightToGrams(weightStr, unit) {
+  const w = parseFloat(weightStr);
+  if (isNaN(w)) return '';
+  const u = (unit || 'kg').toLowerCase();
+  let grams = w;
+  if (u === 'kg') grams = w * 1000;
+  else if (u === 'lb') grams = w * 453.592;
+  else if (u === 'oz') grams = w * 28.3495;
+  return String(Math.round(grams));
+}
+
+function normalizeExistingExportRecords(records) {
+  return records
+    .filter(r => (r['Handle'] || '').toString().trim())
+    .map(r => {
+      const row = Object.assign({}, r);
+      if (!row['Variant Grams']) {
+        row['Variant Grams'] = weightToGrams(row['Variant Weight'], row['Variant Weight Unit']);
+      }
+      return row;
+    });
+}
+
+async function parseExistingExportFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv')) {
+    const text = await readFileAsUTF8(file);
+    const rows = parseCSV(text.replace(/^﻿/, ''));
+    const { records } = toRecords(rows);
+    return records;
+  }
+  if (typeof XLSX === 'undefined') {
+    throw new Error('xlsxファイルを読み込むためのライブラリが読み込めませんでした(インターネット接続をご確認ください)。CSV形式でのエクスポートもお試しください。');
+  }
+  const buf = await readFileAsArrayBuffer(file);
+  const wb = XLSX.read(buf, { type: 'array' });
+  const sheetName = wb.SheetNames.find(n => n.trim() === 'Products') || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  if (!rows.length) return [];
+  const header = rows[0];
+  return rows.slice(1).map(row => {
+    const rec = {};
+    header.forEach((h, i) => rec[h] = row[i] !== undefined ? String(row[i]) : '');
+    return rec;
+  });
+}
+
+document.getElementById('loadExistingBtn').addEventListener('click', async () => {
+  const fileEl = document.getElementById('existingExportFile');
+  const logEl = document.getElementById('existingLog');
+  if (!fileEl.files[0]) {
+    logEl.textContent = 'ファイルを選択してください。';
+    return;
+  }
+  logEl.textContent = '読み込み中...';
+  try {
+    const records = await parseExistingExportFile(fileEl.files[0]);
+    const normalized = normalizeExistingExportRecords(records);
+    if (!normalized.length) {
+      logEl.textContent = 'Handle列を含む有効な行が見つかりませんでした。Matrixifyのエクスポート形式(Productsシート/シート)であることをご確認ください。';
+      return;
+    }
+    lastOutputRows = normalized;
+    dataSourceMode = 'existing';
+    document.getElementById('downloadBtn').disabled = true;
+    document.getElementById('downloadSelectedBtn').disabled = false;
+    const distinctHandles = new Set(normalized.map(r => r.Handle)).size;
+    logEl.textContent = '✓ 読込完了: 商品数 ' + distinctHandles + ' / 行数 ' + normalized.length +
+      '。上の「選択して更新」で項目を選び、「選択項目のみのCSVをダウンロード」をご利用ください。';
+    renderPreview(normalized);
+  } catch (err) {
+    logEl.textContent = 'エラー: ' + err.message;
+    console.error(err);
+  }
+});
+
+loadRulesFromStorage();
+renderStoreTabs();
+renderTypeRules();
+renderTagRules();
+renderLeadtimeMaster();
+populateHeaderDatalist();
+</script>
+
+
+
+</body></html>
