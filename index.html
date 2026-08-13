@@ -184,19 +184,36 @@
 
   <h3>製品メタフィールド(手入力用の空欄列)について</h3>
   <p class="hint">出力CSVの末尾に、管理画面の製品メタフィールド16項目を空欄で追加しています。「合わせて買いたい」「この商品のシリーズはこちら」「その他のサイズはこちら」のような商品を紐づける列には、<b>商品番号(SKU)ではなく商品のHandle(URL品番)</b>をカンマ区切りで入力してください(例: 2m-rogdt, ud-bibari60, hu-54681070)。それ以外の列(タイトル・フラグ・絞り込み用テキストなど)は文言をそのまま入力してください。</p>
+</section>
 
-  <h3>選択して更新(既存商品の一部項目だけを更新したい場合)</h3>
+<section>
+  <h2>3. 既存商品の一部項目だけを更新する場合(任意)</h2>
+  <p class="hint">新規にauPAYデータから商品を登録するだけの場合は、この手順は不要です(下の「4. 変換実行」で「Shopify用CSVをダウンロード」をご利用ください)。既存商品の価格・タグ・1枚目画像などを一部だけ更新したい場合に、この項目を使用します。</p>
+
+  <h3>既存商品データを読み込む(任意)</h3>
+  <p class="hint">Matrixifyでエクスポートした既存商品のファイル(.xlsx または .csv)を読み込むと、そのデータをもとに更新用CSVを作成できます。「1. CSVファイルを選択」のauPAYデータをそのまま使う場合は、この読み込みは不要です。</p>
   <div class="warn-box">
-    ⚠️ 注意: ここで出力されるCSVは、変換対象になった商品<b>すべて</b>に対して、チェックした項目を<b>一括で上書き更新</b>するCSVです。特定の商品だけを更新したい場合は、ダウンロード後にExcelなどで対象外の行を削除してからMatrixifyに取り込んでください。
+    ⚠️ このモードで読み込んだ場合、「選択項目のみのCSVをダウンロード」のみご利用いただけます(画像・バリアント構成を丸ごと差し替える「Shopify用CSVをダウンロード」は使用できません)。
   </div>
-  <p class="hint">チェックした項目だけを含む、更新専用の軽量CSVを別途ダウンロードできます(バリアント構成そのものには触れません)。</p>
+  <input type="file" id="existingExportFile" accept=".xlsx,.csv">
+  <button class="btn secondary" id="loadExistingBtn" style="margin-left:8px;">読み込む</button>
+  <div id="existingLog" class="hint" style="margin-top:8px;"></div>
+
+  <h3 style="margin-top:20px;">更新する項目を選択</h3>
+  <div class="warn-box">
+    ⚠️ 注意: ここで出力されるCSVは、対象になった商品<b>すべて</b>に対して、チェックした項目を<b>一括で上書き更新</b>するCSVです。特定の商品だけを更新したい場合は、ダウンロード後にExcelなどで対象外の行を削除してからMatrixifyに取り込んでください。
+  </div>
+  <p class="hint">チェックした項目だけを含む、更新専用の軽量CSVを別途ダウンロードできます(バリアント構成そのものには触れません)。「4. 変換実行」の「選択項目のみのCSVをダウンロード」で出力します。</p>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdatePrice"> 価格</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateWeight"> 重量</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateTitle"> 商品名</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateTags"> タグ</label>
   <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateType"> 商品タイプ</label>
-  <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px;"><input type="checkbox" id="selUpdateImage1"> 1枚目画像(文字無し)</label>
-  <p class="hint" id="selUpdateImage1Hint" style="margin-top:4px;">「1. CSVファイルを選択」の「文字無し1枚目画像」で選んだフォルダの中から、品番(Handle/Variant SKU)が一致する商品だけ、1枚目の画像をMERGEで差し替えます(他の画像・バリアントは変更されません)。取込時はそのフォルダをZIP化して画像ZIPとして一緒にアップロードしてください。</p>
+
+  <div style="margin-top:14px; padding-top:12px; border-top:1px solid #eee;">
+    <label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" id="selUpdateImage1"> 1枚目画像(文字無し)</label>
+    <p class="hint" id="selUpdateImage1Hint" style="margin-top:4px;">「1. CSVファイルを選択」の「文字無し1枚目画像」で選んだフォルダの中から、品番(Handle/Variant SKU)が一致する商品だけ、1枚目の画像をMERGEで差し替えます(他の画像・バリアントは変更されません)。取込時はそのフォルダをZIP化して画像ZIPとして一緒にアップロードしてください。</p>
+  </div>
 
   <p class="hint" style="margin-top:12px;">その他の項目を更新したい場合は、列名を直接入力してください(最大3つ。入力候補から選べます)。</p>
   <div class="row">
@@ -209,17 +226,6 @@
     <button class="btn secondary small" id="clearSelUpdateBtn">選択をクリア</button>
     <span class="hint" id="selUpdateStatus"></span>
   </div>
-</section>
-
-<section>
-  <h2>3. 既存商品データを読み込んで編集(任意)</h2>
-  <p class="hint">Matrixifyでエクスポートした既存商品のファイル(.xlsx または .csv)を読み込み、上の「選択して更新」で選んだ項目だけを含む更新用CSVを作成できます。新規にauPAYデータから変換する場合はこの手順は不要です。</p>
-  <div class="warn-box">
-    ⚠️ このモードで読み込んだ場合、「選択項目のみのCSVをダウンロード」のみご利用いただけます(画像・バリアント構成を丸ごと差し替える「Shopify用CSVをダウンロード」は使用できません)。
-  </div>
-  <input type="file" id="existingExportFile" accept=".xlsx,.csv">
-  <button class="btn secondary" id="loadExistingBtn" style="margin-left:8px;">読み込む</button>
-  <div id="existingLog" class="hint" style="margin-top:8px;"></div>
 </section>
 
 <section>
