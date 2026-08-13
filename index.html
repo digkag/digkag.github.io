@@ -107,7 +107,7 @@
 
 <section>
   <h2>2. 店舗を選択</h2>
-  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。他のPCにも反映したい場合は、各項目の「保存する」を押して出力されるファイルをGitHubにアップロードしてください。</p>
+  <p class="hint">Type判定ルール・更新ルール・納期マスタ・ジャンルマスタは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。他のPCにも反映したい場合は、各項目の「保存する」を押すとクリップボードにコピーされるので、GitHubのrules.jsonに貼り付けてください。</p>
   <div class="store-tabs" id="storeTabs"></div>
 
   <div class="row">
@@ -476,14 +476,44 @@ function downloadJSON(filename, obj) {
   URL.revokeObjectURL(url);
 }
 
-function saveSharedRules(statusElId) {
-  downloadJSON('rules.json', buildSharedRulesPayload());
-  const el = document.getElementById(statusElId);
-  if (el) {
-    el.textContent = '✓ 保存しました(rules.jsonをGitHubにアップロードすると他のPCにも反映されます)';
-    clearTimeout(el._t);
-    el._t = setTimeout(() => { el.textContent = ''; }, 5000);
+// クリップボードへのコピーを試み、失敗した場合(古いブラウザ/権限拒否など)は
+// document.execCommand('copy')にフォールバックし、それも失敗したら最終手段として
+// ファイルダウンロードする(必ずデータを取り出せるようにするため)。
+async function copyTextToClipboard(text) {
+  if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) { /* フォールバックへ */ }
   }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch (e) { /* フォールバックへ */ }
+  return false;
+}
+
+async function saveSharedRules(statusElId) {
+  const json = JSON.stringify(buildSharedRulesPayload(), null, 2);
+  const el = document.getElementById(statusElId);
+  const copied = await copyTextToClipboard(json);
+  if (!el) return;
+  if (copied) {
+    el.textContent = '✓ コピーしました。GitHubのrules.jsonに貼り付けて保存してください';
+  } else {
+    downloadJSON('rules.json', JSON.parse(json));
+    el.textContent = '✓ コピーできなかったためrules.jsonをダウンロードしました。GitHubにアップロードしてください';
+  }
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ''; }, 6000);
 }
 document.getElementById('saveSharedRulesBtnType').addEventListener('click', () => saveSharedRules('typeSaveStatus'));
 document.getElementById('saveSharedRulesBtnTag').addEventListener('click', () => saveSharedRules('tagSaveStatus'));
