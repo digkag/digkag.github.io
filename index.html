@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- saved from url=(0255)file:///C:/Users/genepa/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude/local-agent-mode-sessions/b1f9d22d-e5f4-4484-a3bd-48a7b2599d18/a9024459-9ac2-4cba-b28b-0c95ce44ee87/local_bf9d3c05-e831-4865-9306-0c6597d431dd/outputs/index.html -->
-<html lang="ja"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
 <title>auPAY → Shopify CSV 変換ツール</title>
-<script src="./auPAY → Shopify CSV 変換ツール_files/xlsx.full.min.js.ダウンロード"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -97,7 +97,7 @@
     </div>
   </div>
   <p class="hint">文字コードはShift_JIS想定です。</p>
-  <div class="row" id="rakutenFileRow" style="display: flex;">
+  <div class="row" id="rakutenFileRow" style="display:none;">
     <div>
       <label>楽天商品CSV (rakuten_rcmdse_item_*.csv) — ジャンルIDベースのType判定を使う店舗のみ必須</label>
       <input type="file" id="rakutenItemFile" accept=".csv">
@@ -108,7 +108,7 @@
 <section>
   <h2>2. 店舗を選択</h2>
   <p class="hint">Type判定ルールとTagsルールは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。別のPC/ブラウザで使う場合はCSV出力→取込をご利用ください。</p>
-  <div class="store-tabs" id="storeTabs"><button class="store-tab">DigKag</button><button class="store-tab active">リコメン堂</button><button class="store-tab">Branchee Beaute</button><button class="store-tab">KITCHENサジェスト</button><button class="store-tab">GraSUS</button><button class="store-tab">madokara</button><button class="store-tab">ハコモノヤ</button></div>
+  <div class="store-tabs" id="storeTabs"></div>
 
   <div class="row">
     <div>
@@ -131,14 +131,14 @@
   <label style="display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
     <input type="checkbox" id="useGenreIdType"> この店舗はキーワードではなく、楽天ジャンルIDベースでTypeを判定する
   </label>
-  <div id="genreIdTypeBlock" style="display: block; background: rgb(247, 247, 247); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;">
+  <div id="genreIdTypeBlock" style="display:none; background:#f7f7f7; border-radius:6px; padding:10px 12px; margin-bottom:10px;">
     <p class="hint" style="margin-top:0;">品番(URL品番/管理番号)で楽天CSVの「ジャンルID」を調べ、下記マスタの「ディレクトリID」と照合してTypeを設定します。楽天データに対応する品番がない場合(統合品番など)やマスタにジャンルIDが無い場合は、変換後にエラーとして一覧表示されます。</p>
     <label>ジャンルID→Typeマスタ(master_shopify_*.csv。一度読み込めばこのブラウザに保存され、次回以降は再読込不要です)</label>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <input type="file" id="genreMasterFile" accept=".csv">
       <button class="btn secondary small" id="loadGenreMasterBtn">読み込む</button>
       <button class="btn secondary small" id="clearGenreMasterBtn">クリア</button>
-      <span class="hint" id="genreMasterStatus" style="margin:0;">未読込です。master_shopify_*.csvを選択して「読み込む」を押してください。</span>
+      <span class="hint" id="genreMasterStatus" style="margin:0;"></span>
     </div>
   </div>
   <table class="rules" id="typeRulesTable">
@@ -170,7 +170,7 @@
   <p class="hint">auPAYの<b>stockShippingDayId</b> / <b>choicesStockShippingDayId</b>がこの管理番号に一致した場合、Shopify納期文言を優先して「Variant Metafield: custom.leadtime」に設定します(auPAYの納期表示テキストより優先)。どちらも見つからない場合は空欄で出力され、変換後に警告リストで確認できます。</p>
   <table class="rules" id="leadtimeMasterTable">
     <thead><tr><th style="width:120px">管理番号</th><th>Shopify納期文言</th><th style="width:60px"></th></tr></thead>
-    <tbody><tr><td><input type="text" data-i="0" data-f="id" value="1"></td><td><input type="text" data-i="0" data-f="text" value="即日発送予定(土日祝除く14時までのご注文)"></td><td><button class="btn secondary small" data-del="0">削除</button></td></tr><tr><td><input type="text" data-i="1" data-f="id" value="2"></td><td><input type="text" data-i="1" data-f="text" value="通常1～3日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="1">削除</button></td></tr><tr><td><input type="text" data-i="2" data-f="id" value="3"></td><td><input type="text" data-i="2" data-f="text" value="通常2～4日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="2">削除</button></td></tr><tr><td><input type="text" data-i="3" data-f="id" value="4"></td><td><input type="text" data-i="3" data-f="text" value="通常3～5日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="3">削除</button></td></tr><tr><td><input type="text" data-i="4" data-f="id" value="5"></td><td><input type="text" data-i="4" data-f="text" value="通常4～6日以内に発送予定(土日祝除く)"></td><td><button class="btn secondary small" data-del="4">削除</button></td></tr><tr><td><input type="text" data-i="5" data-f="id" value="6"></td><td><input type="text" data-i="5" data-f="text" value="通常1週間前後で発送予定"></td><td><button class="btn secondary small" data-del="5">削除</button></td></tr><tr><td><input type="text" data-i="6" data-f="id" value="7"></td><td><input type="text" data-i="6" data-f="text" value="通常10日前後で発送予定"></td><td><button class="btn secondary small" data-del="6">削除</button></td></tr><tr><td><input type="text" data-i="7" data-f="id" value="8"></td><td><input type="text" data-i="7" data-f="text" value="通常2週間前後で発送予定"></td><td><button class="btn secondary small" data-del="7">削除</button></td></tr><tr><td><input type="text" data-i="8" data-f="id" value="9"></td><td><input type="text" data-i="8" data-f="text" value="通常3週間前後で発送予定"></td><td><button class="btn secondary small" data-del="8">削除</button></td></tr><tr><td><input type="text" data-i="9" data-f="id" value="10"></td><td><input type="text" data-i="9" data-f="text" value="通常1ヶ月前後で発送予定"></td><td><button class="btn secondary small" data-del="9">削除</button></td></tr><tr><td colspan="3" style="text-align: center;"><button class="btn secondary small">▼ 残り74件を表示</button></td></tr></tbody>
+    <tbody></tbody>
   </table>
   <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
     <button class="btn secondary small" id="addLeadtimeMasterBtn">+ 行を追加</button>
@@ -201,7 +201,7 @@
     <div><input type="text" id="selUpdateFree2" list="allHeaderColumns" placeholder="例: Metafield: custom.coupon [boolean]"></div>
     <div><input type="text" id="selUpdateFree3" list="allHeaderColumns" placeholder="自由記入欄3"></div>
   </div>
-  <datalist id="allHeaderColumns"><option value="Handle"></option><option value="Title"></option><option value="Body (HTML)"></option><option value="Vendor"></option><option value="Product Category"></option><option value="Type"></option><option value="Tags"></option><option value="Published"></option><option value="Option1 Name"></option><option value="Option1 Value"></option><option value="Option2 Name"></option><option value="Option2 Value"></option><option value="Option3 Name"></option><option value="Option3 Value"></option><option value="Variant SKU"></option><option value="Variant Grams"></option><option value="Variant Inventory Tracker"></option><option value="Variant Inventory Qty"></option><option value="Variant Inventory Policy"></option><option value="Variant Fulfillment Service"></option><option value="Variant Price"></option><option value="Variant Compare At Price"></option><option value="Variant Requires Shipping"></option><option value="Variant Taxable"></option><option value="Variant Barcode"></option><option value="Image Src"></option><option value="Image Position"></option><option value="Image Alt Text"></option><option value="Gift Card"></option><option value="SEO Title"></option><option value="SEO Description"></option><option value="Google Shopping / Google Product Category"></option><option value="Google Shopping / Gender"></option><option value="Google Shopping / Age Group"></option><option value="Google Shopping / MPN"></option><option value="Google Shopping / Condition"></option><option value="Google Shopping / Custom Product"></option><option value="Google Shopping / Custom Label 0"></option><option value="Google Shopping / Custom Label 1"></option><option value="Google Shopping / Custom Label 2"></option><option value="Google Shopping / Custom Label 3"></option><option value="Google Shopping / Custom Label 4"></option><option value="Variant Image"></option><option value="Variant Weight Unit"></option><option value="Variant Tax Code"></option><option value="Cost per item"></option><option value="Included / Japan"></option><option value="Price / Japan"></option><option value="Compare At Price / Japan"></option><option value="Included / International"></option><option value="Price / International"></option><option value="Compare At Price / International"></option><option value="Status"></option><option value="Variant Metafield: custom.leadtime [single_line_text_field]"></option><option value="Variant Command"></option><option value="Image Command"></option><option value="Metafield: custom.cross-sell [single_line_text_field]"></option><option value="Metafield: custom._upsell-items-similar [list.product_reference]"></option><option value="Metafield: custom.series-sell [single_line_text_field]"></option><option value="Metafield: custom._upsell-items-series [list.product_reference]"></option><option value="Metafield: custom.other-size [single_line_text_field]"></option><option value="Metafield: custom._upsell-items-size [list.product_reference]"></option><option value="Metafield: custom.coupon [boolean]"></option><option value="Metafield: custom.narrow-down-seatsize [list.single_line_text_field]"></option><option value="Metafield: custom.narrow-down-widthsize [list.dimension]"></option><option value="Metafield: custom.narrow-down-heightsize [list.dimension]"></option><option value="Metafield: custom.narrow-down-material [list.single_line_text_field]"></option><option value="Metafield: custom.narrow-down-shape [single_line_text_field]"></option><option value="Metafield: custom.narrow-down-option [list.single_line_text_field]"></option><option value="Metafield: custom._related-cate [list.collection_reference]"></option><option value="Metafield: custom.delivery-date [single_line_text_field]"></option><option value="Metafield: custom.product-badge [list.single_line_text_field]"></option></datalist>
+  <datalist id="allHeaderColumns"></datalist>
   <div style="margin-top:8px;">
     <button class="btn secondary small" id="clearSelUpdateBtn">選択をクリア</button>
   </div>
@@ -224,8 +224,8 @@
     ⚠️ 注意: 「Shopify用CSVをダウンロード」はバリアント・画像を<b>REPLACE(一括で削除して差し替え)</b>するCSVです。既存商品と衝突するHandleが含まれる場合、その商品の既存バリアント・画像はすべて置き換わります。取込前に対象商品を必ずご確認ください。
   </div>
   <button class="btn" id="convertBtn">CSVを変換</button>
-  <button class="btn secondary" id="downloadBtn" disabled="">Shopify用CSVをダウンロード</button>
-  <button class="btn secondary" id="downloadSelectedBtn" disabled="">選択項目のみのCSVをダウンロード</button>
+  <button class="btn secondary" id="downloadBtn" disabled>Shopify用CSVをダウンロード</button>
+  <button class="btn secondary" id="downloadSelectedBtn" disabled>選択項目のみのCSVをダウンロード</button>
   <div id="log"></div>
   <div id="summary" class="summary"></div>
   <div id="warnList" class="warn-list"></div>
@@ -1387,6 +1387,5 @@ populateHeaderDatalist();
 applyGenreIdTypeUI();
 </script>
 
-
-
-</body></html>
+</body>
+</html>
