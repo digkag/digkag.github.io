@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- saved from url=(0025)https://digkag.github.io/ -->
+<!-- saved from url=(0255)file:///C:/Users/genepa/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude/local-agent-mode-sessions/b1f9d22d-e5f4-4484-a3bd-48a7b2599d18/a9024459-9ac2-4cba-b28b-0c95ce44ee87/local_bf9d3c05-e831-4865-9306-0c6597d431dd/outputs/index.html -->
 <html lang="ja"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <title>auPAY → Shopify CSV 変換ツール</title>
-<script src="./index_files/xlsx.full.min.js.ダウンロード"></script>
+<script src="./auPAY → Shopify CSV 変換ツール_files/xlsx.full.min.js.ダウンロード"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -97,12 +97,18 @@
     </div>
   </div>
   <p class="hint">文字コードはShift_JIS想定です。</p>
+  <div class="row" id="rakutenFileRow" style="display: flex;">
+    <div>
+      <label>楽天商品CSV (rakuten_rcmdse_item_*.csv) — ジャンルIDベースのType判定を使う店舗のみ必須</label>
+      <input type="file" id="rakutenItemFile" accept=".csv">
+    </div>
+  </div>
 </section>
 
 <section>
   <h2>2. 店舗を選択</h2>
   <p class="hint">Type判定ルールとTagsルールは店舗ごとに切り替わります。編集した内容はこのブラウザに自動保存され、次回このツールを開いた時も引き継がれます。別のPC/ブラウザで使う場合はCSV出力→取込をご利用ください。</p>
-  <div class="store-tabs" id="storeTabs"><button class="store-tab active">DigKag</button><button class="store-tab">リコメン堂</button><button class="store-tab">Branchee Beaute</button><button class="store-tab">KITCHENサジェスト</button><button class="store-tab">GraSUS</button><button class="store-tab">madokara</button><button class="store-tab">ハコモノヤ</button></div>
+  <div class="store-tabs" id="storeTabs"><button class="store-tab">DigKag</button><button class="store-tab active">リコメン堂</button><button class="store-tab">Branchee Beaute</button><button class="store-tab">KITCHENサジェスト</button><button class="store-tab">GraSUS</button><button class="store-tab">madokara</button><button class="store-tab">ハコモノヤ</button></div>
 
   <div class="row">
     <div>
@@ -122,9 +128,22 @@
   </div>
 
   <h3>Type判定ルール(商品名にキーワードが含まれていたら適用。上から順に最初に一致したものを使用)</h3>
+  <label style="display:inline-flex; align-items:center; gap:6px; margin-bottom:8px;">
+    <input type="checkbox" id="useGenreIdType"> この店舗はキーワードではなく、楽天ジャンルIDベースでTypeを判定する
+  </label>
+  <div id="genreIdTypeBlock" style="display: block; background: rgb(247, 247, 247); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;">
+    <p class="hint" style="margin-top:0;">品番(URL品番/管理番号)で楽天CSVの「ジャンルID」を調べ、下記マスタの「ディレクトリID」と照合してTypeを設定します。楽天データに対応する品番がない場合(統合品番など)やマスタにジャンルIDが無い場合は、変換後にエラーとして一覧表示されます。</p>
+    <label>ジャンルID→Typeマスタ(master_shopify_*.csv。一度読み込めばこのブラウザに保存され、次回以降は再読込不要です)</label>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input type="file" id="genreMasterFile" accept=".csv">
+      <button class="btn secondary small" id="loadGenreMasterBtn">読み込む</button>
+      <button class="btn secondary small" id="clearGenreMasterBtn">クリア</button>
+      <span class="hint" id="genreMasterStatus" style="margin:0;">未読込です。master_shopify_*.csvを選択して「読み込む」を押してください。</span>
+    </div>
+  </div>
   <table class="rules" id="typeRulesTable">
     <thead><tr><th style="width:45%">キーワード</th><th>Type</th><th style="width:60px"></th></tr></thead>
-    <tbody><tr><td><input type="text" data-i="0" data-f="kw" value="キッチンカウンター"></td><td><input type="text" data-i="0" data-f="ty" value="キッチンカウンター"></td><td><button class="btn secondary small" data-del="0">削除</button></td></tr><tr><td><input type="text" data-i="1" data-f="kw" value="食器棚"></td><td><input type="text" data-i="1" data-f="ty" value="食器棚"></td><td><button class="btn secondary small" data-del="1">削除</button></td></tr><tr><td><input type="text" data-i="2" data-f="kw" value="こたつ"></td><td><input type="text" data-i="2" data-f="ty" value="こたつ"></td><td><button class="btn secondary small" data-del="2">削除</button></td></tr><tr><td><input type="text" data-i="3" data-f="kw" value="コレクションケース"></td><td><input type="text" data-i="3" data-f="ty" value="コレクションケース"></td><td><button class="btn secondary small" data-del="3">削除</button></td></tr><tr><td><input type="text" data-i="4" data-f="kw" value="センターテーブル"></td><td><input type="text" data-i="4" data-f="ty" value="センターテーブル"></td><td><button class="btn secondary small" data-del="4">削除</button></td></tr><tr><td><input type="text" data-i="5" data-f="kw" value="ダイニングテーブルセット"></td><td><input type="text" data-i="5" data-f="ty" value="ダイニングセット"></td><td><button class="btn secondary small" data-del="5">削除</button></td></tr><tr><td><input type="text" data-i="6" data-f="kw" value="ダイニングセット"></td><td><input type="text" data-i="6" data-f="ty" value="ダイニングセット"></td><td><button class="btn secondary small" data-del="6">削除</button></td></tr><tr><td><input type="text" data-i="7" data-f="kw" value="ダイニングテーブル"></td><td><input type="text" data-i="7" data-f="ty" value="ダイニングテーブル"></td><td><button class="btn secondary small" data-del="7">削除</button></td></tr><tr><td><input type="text" data-i="8" data-f="kw" value="ダイニングチェア"></td><td><input type="text" data-i="8" data-f="ty" value="ダイニングチェア"></td><td><button class="btn secondary small" data-del="8">削除</button></td></tr><tr><td><input type="text" data-i="9" data-f="kw" value="ダイニングベンチ"></td><td><input type="text" data-i="9" data-f="ty" value="ダイニングチェア"></td><td><button class="btn secondary small" data-del="9">削除</button></td></tr><tr><td colspan="3" style="text-align: center;"><button class="btn secondary small">▼ 残り3件を表示</button></td></tr></tbody>
+    <tbody></tbody>
   </table>
   <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
     <button class="btn secondary small" id="addTypeRuleBtn">+ 行を追加</button>
@@ -137,7 +156,7 @@
 
   <h3>更新ルール(条件に一致したら任意の項目に値を設定。複数追加できます)</h3>
   <p class="hint">「出力先列」には項目名を自由に入力できます(入力候補あり)。Tagsに追加したい場合は出力先列に <b>Tags</b> と入力してください(下の初期例を参照)。Tags以外の項目は、条件に一致した最後のルールの値で上書きされます。</p>
-  <div id="tagRulesList"><div class="tagrule-sentence row" style="align-items: center;"><div style="max-width:140px;"><input type="text" data-i="0" data-f="field" value="itemOption" placeholder="検索対象列"></div><div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div><div style="max-width:180px;"><input type="text" data-i="0" data-f="condition" value="配達日時指定は不可" placeholder="条件文言"></div><div style="flex:0 0 auto; max-width:130px; white-space:nowrap;">の文言があれば、</div><div style="max-width:150px;"><input type="text" data-i="0" data-f="targetField" list="allHeaderColumns" value="Tags" placeholder="出力先列"></div><div style="flex:0 0 auto; max-width:20px; text-align:center;">に</div><div style="max-width:180px;"><input type="text" data-i="0" data-f="value" value="配送希望日時指定不可" placeholder="設定する値"></div><div style="flex:0 0 auto; max-width:60px; white-space:nowrap;">を設定</div><div style="flex:0 0 auto;"><button class="btn secondary small" data-del="0">削除</button></div></div></div>
+  <div id="tagRulesList"></div>
   <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
     <button class="btn secondary small" id="addTagRuleBtn">+ ルールを追加</button>
     <button class="btn secondary small" id="exportTagRulesBtn">CSV出力</button>
@@ -255,9 +274,14 @@ STORE_NAMES.forEach(name => {
   stores[name] = {
     typeRules: defaultTypeRules(name),
     tagRules: defaultTagRules(name),
+    useGenreIdType: name === 'リコメン堂',
   };
 });
 let currentStore = 'DigKag';
+
+// ジャンルID→Typeマスタ(全店舗共通・楽天のジャンルID体系に基づく)。[ディレクトリID, Type, Tags]の配列。
+// master_shopify_*.csv を読み込んで作成する(件数が多いため既定値は空)。
+let genreTypeMaster = [];
 
 // 納期管理番号マスタ(全店舗共通)。楽天_納期管理番号 = auPAYのstockShippingDayId / choicesStockShippingDayId と同一の採番。
 // 「納期管理番号マスタ.csv」のShopify_納期文言列より(2026-08-13時点)。
@@ -375,12 +399,28 @@ function loadRulesFromStorage() {
       if (savedStores && savedStores[name]) {
         if (Array.isArray(savedStores[name].typeRules)) stores[name].typeRules = savedStores[name].typeRules;
         if (Array.isArray(savedStores[name].tagRules)) stores[name].tagRules = savedStores[name].tagRules.map(migrateTagRule);
+        if (typeof savedStores[name].useGenreIdType === 'boolean') stores[name].useGenreIdType = savedStores[name].useGenreIdType;
       }
     });
     if (parsed && Array.isArray(parsed.leadtimeMaster)) {
       leadtimeMaster = parsed.leadtimeMaster;
     }
   } catch (e) { console.error('設定の読込に失敗しました', e); }
+}
+
+const GENRE_MASTER_STORAGE_KEY = 'auPayConverter_genreTypeMaster_v1';
+
+function saveGenreMasterToStorage() {
+  try {
+    localStorage.setItem(GENRE_MASTER_STORAGE_KEY, JSON.stringify(genreTypeMaster));
+  } catch (e) { console.error('ジャンルマスタの保存に失敗しました', e); }
+}
+
+function loadGenreMasterFromStorage() {
+  try {
+    const raw = localStorage.getItem(GENRE_MASTER_STORAGE_KEY);
+    if (raw) genreTypeMaster = JSON.parse(raw);
+  } catch (e) { console.error('ジャンルマスタの読込に失敗しました', e); }
 }
 
 function flashSaveStatus(elId) {
@@ -445,7 +485,60 @@ function selectStore(name) {
   renderStoreTabs();
   renderTypeRules();
   renderTagRules();
+  applyGenreIdTypeUI();
 }
+
+function applyGenreIdTypeUI() {
+  const useGenreId = !!stores[currentStore].useGenreIdType;
+  document.getElementById('useGenreIdType').checked = useGenreId;
+  document.getElementById('genreIdTypeBlock').style.display = useGenreId ? 'block' : 'none';
+  document.getElementById('rakutenFileRow').style.display = useGenreId ? 'flex' : 'none';
+  updateGenreMasterStatus();
+}
+
+function updateGenreMasterStatus() {
+  const el = document.getElementById('genreMasterStatus');
+  if (!el) return;
+  el.textContent = genreTypeMaster.length
+    ? '✓ ' + genreTypeMaster.length + '件読込済み(このブラウザに保存されています)'
+    : '未読込です。master_shopify_*.csvを選択して「読み込む」を押してください。';
+}
+
+document.getElementById('useGenreIdType').addEventListener('change', e => {
+  stores[currentStore].useGenreIdType = e.target.checked;
+  document.getElementById('genreIdTypeBlock').style.display = e.target.checked ? 'block' : 'none';
+  document.getElementById('rakutenFileRow').style.display = e.target.checked ? 'flex' : 'none';
+  saveRulesToStorage();
+});
+
+document.getElementById('loadGenreMasterBtn').addEventListener('click', async () => {
+  const fileEl = document.getElementById('genreMasterFile');
+  const statusEl = document.getElementById('genreMasterStatus');
+  if (!fileEl.files[0]) { statusEl.textContent = 'ファイルを選択してください。'; return; }
+  statusEl.textContent = '読み込み中...';
+  try {
+    const text = await readFileAsShiftJIS(fileEl.files[0]);
+    const rows = parseCSV(text);
+    const { records } = toRecords(rows);
+    const newMaster = records
+      .filter(r => (r['ディレクトリID'] || '').trim() && (r['Type'] || '').trim())
+      .map(r => [r['ディレクトリID'].trim(), r['Type'].trim(), (r['Tags'] || '').trim()]);
+    genreTypeMaster = newMaster;
+    saveGenreMasterToStorage();
+    updateGenreMasterStatus();
+    fileEl.value = '';
+  } catch (err) {
+    statusEl.textContent = 'エラー: ' + err.message;
+    console.error(err);
+  }
+});
+
+document.getElementById('clearGenreMasterBtn').addEventListener('click', () => {
+  if (!confirm('ジャンルID→Typeマスタ(' + genreTypeMaster.length + '件)を削除します。よろしいですか？')) return;
+  genreTypeMaster = [];
+  saveGenreMasterToStorage();
+  updateGenreMasterStatus();
+});
 
 let typeRulesExpanded = false;
 const TYPE_RULES_COLLAPSE_LIMIT = 10;
@@ -898,16 +991,43 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     return;
   }
 
+  const useGenreId = !!stores[currentStore].useGenreIdType;
+  const rakutenFileEl = document.getElementById('rakutenItemFile');
+  if (useGenreId && !rakutenFileEl.files[0]) {
+    log.textContent = 'この店舗はジャンルIDベースのType判定が有効です。楽天商品CSVを選択してください。';
+    return;
+  }
+  if (useGenreId && !genreTypeMaster.length) {
+    log.textContent = 'ジャンルID→Typeマスタが未読込です。「Type判定ルール」内でmaster_shopify_*.csvを読み込んでください。';
+    return;
+  }
+
   try {
-    const [itemText, stockText] = await Promise.all([
+    const [itemText, stockText, rakutenText] = await Promise.all([
       readFileAsShiftJIS(itemFileEl.files[0]),
       readFileAsShiftJIS(stockFileEl.files[0]),
+      useGenreId ? readFileAsShiftJIS(rakutenFileEl.files[0]) : Promise.resolve(null),
     ]);
 
     const itemRows = parseCSV(itemText);
     const stockRows = parseCSV(stockText);
     const { records: items } = toRecords(itemRows);
     const { records: stockRecs } = toRecords(stockRows);
+
+    // 楽天品番 -> ジャンルID のルックアップ(ジャンルIDベースType判定を使う店舗のみ)
+    const rakutenGenreLookup = {};
+    if (useGenreId && rakutenText) {
+      const { records: rakutenRecs } = toRecords(parseCSV(rakutenText));
+      rakutenRecs.forEach(r => {
+        const mgmt = (r['商品管理番号（商品URL）'] || '').trim();
+        const genreId = (r['ジャンルID'] || '').trim();
+        if (mgmt && genreId && !rakutenGenreLookup[mgmt]) rakutenGenreLookup[mgmt] = genreId;
+      });
+    }
+    const genreTypeMap = {};
+    if (useGenreId) {
+      genreTypeMaster.forEach(([id, type]) => { if (!(id in genreTypeMap)) genreTypeMap[id] = type; });
+    }
 
     const stockByCode = {};
     stockRecs.forEach(sr => {
@@ -929,7 +1049,25 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const outRows = [];
     const weightReview = [];
     const leadtimeReview = [];
+    const typeReview = [];
     const skipped = [];
+
+    // Type判定: 通常はキーワードベース(guessType)。ジャンルIDベースが有効な店舗は
+    // 楽天の品番→ジャンルID→(マスタ)→Type の順で解決し、見つからなければエラーとして記録する。
+    function resolveType(it, mgmtId, itemCode) {
+      if (!useGenreId) return guessType(it.itemName || '');
+      const genreId = rakutenGenreLookup[itemCode] || rakutenGenreLookup[mgmtId];
+      if (!genreId) {
+        typeReview.push([mgmtId, '楽天データに対応する品番が見つかりません(統合品番の可能性)']);
+        return '';
+      }
+      const type = genreTypeMap[genreId];
+      if (!type) {
+        typeReview.push([mgmtId, 'ジャンルID ' + genreId + ' がマスタに見つかりません']);
+        return '';
+      }
+      return type;
+    }
 
     for (const it of items) {
       const mgmtId = (it.itemManagementId || '').trim();
@@ -1027,7 +1165,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
           row.Title = title;
           row['Body (HTML)'] = bodyHtml;
           row.Vendor = vendor;
-          row.Type = guessType(it.itemName || '');
+          row.Type = resolveType(it, mgmtId, itemCode);
           row.Tags = fieldRules.tags;
           Object.keys(fieldRules.otherFields).forEach(f => {
             if (Object.prototype.hasOwnProperty.call(row, f)) row[f] = fieldRules.otherFields[f];
@@ -1069,6 +1207,10 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     if (leadtimeReview.length) {
       warnBlocks.push('⚠️ 納期(Variant Metafield: custom.leadtime)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
         leadtimeReview.map(([mid, opt]) => '・' + mid + (opt ? ' (' + opt + ')' : '')).join('<br>'));
+    }
+    if (typeReview.length) {
+      warnBlocks.push('⚠️ Type(ジャンルIDベース判定)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
+        typeReview.map(([mid, reason]) => '・' + mid + ' — ' + reason).join('<br>'));
     }
     warnEl.innerHTML = warnBlocks.join('<br><br>');
 
@@ -1236,13 +1378,14 @@ document.getElementById('loadExistingBtn').addEventListener('click', async () =>
 });
 
 loadRulesFromStorage();
+loadGenreMasterFromStorage();
 renderStoreTabs();
 renderTypeRules();
 renderTagRules();
 renderLeadtimeMaster();
 populateHeaderDatalist();
+applyGenreIdTypeUI();
 </script>
-
 
 
 
