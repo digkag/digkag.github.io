@@ -108,9 +108,14 @@
     <div>
       <label>文字無し1枚目画像(任意。フォルダを選択してください。ファイル名(拡張子除く)が品番(itemCode/itemManagementId)と一致する商品だけ、1枚目の画像として差し込まれます)</label>
       <input type="file" id="cleanThumbFiles" accept="image/*" multiple webkitdirectory>
-      <p class="hint" id="cleanThumbStatus" style="margin-top:4px;">この画像はローカルファイルのためURLを持ちません。下の「画像ZIPを作成してダウンロード」で、CSVの参照名と一致するように自動リネームしたZIPを作成できます。そのZIPをMatrixify取込時に画像ZIPとして一緒にアップロードしてください。</p>
+      <p class="hint" id="cleanThumbStatus" style="margin-top:4px;">Matrixifyの「Image Src」列は公開URLが必須のため、この画像は先に下記の「画像公開URLのベース」で指定した場所へアップロードしておく必要があります(ローカルのファイルをZIPで一緒に取り込む機能はMatrixifyにはありません)。</p>
+      <div style="margin-top:10px;">
+        <label>画像公開URLのベース(この画像を公開しているURLの先頭部分。例: https://digkag.github.io/product-images/)</label>
+        <input type="text" id="imageBaseUrl" placeholder="https://digkag.github.io/product-images/">
+        <p class="hint" id="imageBaseUrlHint">ここに文字無し画像をアップロードしてから変換してください。CSVのImage Srcは「ベースURL + ファイル名」で自動生成されます。</p>
+      </div>
       <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
-        <button class="btn secondary small" id="buildCleanThumbZipBtn">画像ZIPを作成してダウンロード</button>
+        <button class="btn secondary small" id="buildCleanThumbZipBtn">アップロード用にリネームしたZIPを作成</button>
         <span class="hint" id="cleanThumbZipStatus"></span>
       </div>
     </div>
@@ -217,7 +222,7 @@
 
   <div style="margin-top:14px; padding-top:12px; border-top:1px solid #eee;">
     <label style="display:inline-flex; align-items:center; gap:6px;"><input type="checkbox" id="selUpdateImage1"> 1枚目画像(文字無し)</label>
-    <p class="hint" id="selUpdateImage1Hint" style="margin-top:4px;">「1. CSVファイルを選択」の「文字無し1枚目画像」で選んだフォルダの中から、品番(Handle/Variant SKU)が一致する商品だけ、1枚目の画像をMERGEで差し替えます(他の画像・バリアントは変更されません)。取込時はそのフォルダをZIP化して画像ZIPとして一緒にアップロードしてください。</p>
+    <p class="hint" id="selUpdateImage1Hint" style="margin-top:4px;">「1. CSVファイルを選択」の「文字無し1枚目画像」で選んだフォルダの中から、品番(Handle/Variant SKU)が一致する商品だけ、1枚目の画像をMERGEで差し替えます(他の画像・バリアントは変更されません)。画像は事前に「文字無し1枚目画像」の「画像公開URLのベース」で指定した場所へアップロードしておいてください。CSVには公開URLが自動で入ります。</p>
   </div>
 
   <p class="hint" style="margin-top:12px;">その他の項目を更新したい場合は、列名を直接入力してください(最大3つ。入力候補から選べます)。</p>
@@ -744,10 +749,16 @@ function csvField(v) {
   if (/[",\n\r]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
   return v;
 }
-function downloadCSV(filename, headerCols, rows) {
+function downloadCSV(filename, headerCols, rows, opts) {
   const lines = [headerCols.map(csvField).join(',')];
   rows.forEach(r => lines.push(r.map(csvField).join(',')));
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  // Matrixify(Shopify取込用)のCSVはBOM(先頭の見えない文字)を付けない。
+  // BOMを付けるとMatrixify側で先頭列(Handle)が正しく認識されず「1 unknown column」の
+  // 警告や取込エラーの原因になるため。Excelなどで開いて確認するだけのCSV(ルール表の
+  // エクスポート等)は文字化け防止のためBOM付きのままにする。
+  const noBom = opts && opts.noBom;
+  const body = (noBom ? '' : '﻿') + lines.join('\r\n');
+  const blob = new Blob([body], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
@@ -970,6 +981,23 @@ let dataSourceMode = 'aupay'; // 'aupay' = auPAYからの新規変換 / 'existin
 const CLEAN_THUMB_SUFFIX = '-1st';
 let cleanThumbLookup = {};
 
+// 画像公開URLのベース(ローカル入力欄に保存。例: https://digkag.github.io/product-images/)
+const imageBaseUrlEl = document.getElementById('imageBaseUrl');
+imageBaseUrlEl.value = localStorage.getItem('imageBaseUrl') || '';
+imageBaseUrlEl.addEventListener('input', () => {
+  localStorage.setItem('imageBaseUrl', imageBaseUrlEl.value);
+});
+function getImageBaseUrl() {
+  let v = (imageBaseUrlEl.value || '').trim();
+  if (v && !v.endsWith('/')) v += '/';
+  return v;
+}
+function buildImageUrl(outName) {
+  const base = getImageBaseUrl();
+  if (!base) return ''; // ベースURL未設定なら公開URLを組み立てられない
+  return base + encodeURIComponent(outName);
+}
+
 function buildCleanThumbLookup() {
   cleanThumbLookup = {};
   const files = document.getElementById('cleanThumbFiles').files;
@@ -980,18 +1008,25 @@ function buildCleanThumbLookup() {
     const ext = dot > 0 ? name.slice(dot) : '';
     const key = base.toLowerCase();
     if (key && !cleanThumbLookup[key]) {
-      cleanThumbLookup[key] = { file: f, outName: base + CLEAN_THUMB_SUFFIX + ext };
+      const outName = base + CLEAN_THUMB_SUFFIX + ext;
+      cleanThumbLookup[key] = { file: f, outName, url: buildImageUrl(outName) };
     }
   }
   const statusEl = document.getElementById('cleanThumbStatus');
   const count = Object.keys(cleanThumbLookup).length;
+  const baseUrl = getImageBaseUrl();
   if (statusEl) {
-    statusEl.textContent = count
-      ? '✓ ' + count + '枚読み込みました。品番が一致した商品の1枚目に差し込まれます(ファイル名の末尾に「' + CLEAN_THUMB_SUFFIX + '」を付けて既存の登録画像と区別します)。下の「画像ZIPを作成してダウンロード」でMatrixify取込用のZIPを作成してください。'
-      : 'この画像はローカルファイルのためURLを持ちません。下の「画像ZIPを作成してダウンロード」で、CSVの参照名と一致するように自動リネームしたZIPを作成できます。そのZIPをMatrixify取込時に画像ZIPとして一緒にアップロードしてください。';
+    if (!count) {
+      statusEl.textContent = 'Matrixifyの「Image Src」列は公開URLが必須のため、この画像は先に下記の「画像公開URLのベース」で指定した場所へアップロードしておく必要があります(ローカルのファイルをZIPで一緒に取り込む機能はMatrixifyにはありません)。';
+    } else if (!baseUrl) {
+      statusEl.textContent = '⚠ ' + count + '枚読み込みましたが、「画像公開URLのベース」が未入力です。入力しないとImage Srcが空欄になります。';
+    } else {
+      statusEl.textContent = '✓ ' + count + '枚読み込みました。品番が一致した商品の1枚目に、公開URL(' + baseUrl + '+ファイル名、末尾に「' + CLEAN_THUMB_SUFFIX + '」を付けて既存の登録画像と区別)を差し込みます。※事前にこの画像を上記URLへアップロード済みであることを確認してください。';
+    }
   }
 }
 document.getElementById('cleanThumbFiles').addEventListener('change', buildCleanThumbLookup);
+imageBaseUrlEl.addEventListener('input', buildCleanThumbLookup);
 
 document.getElementById('buildCleanThumbZipBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('cleanThumbZipStatus');
@@ -1018,7 +1053,7 @@ document.getElementById('buildCleanThumbZipBtn').addEventListener('click', async
     a.href = url; a.download = currentStore + '_1枚目画像.zip';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    if (statusEl) statusEl.textContent = '✓ ' + keys.length + '枚を含むZIPをダウンロードしました。';
+    if (statusEl) statusEl.textContent = '✓ ' + keys.length + '枚を含むZIPをダウンロードしました。解凍して、画像公開URLのベースで指定した場所(例: GitHubリポジトリの該当フォルダ)へアップロードしてください。';
   } catch (err) {
     if (statusEl) statusEl.textContent = 'エラー: ' + err.message;
     console.error(err);
@@ -1143,6 +1178,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
     buildCleanThumbLookup();
     let cleanThumbApplied = 0;
+    let cleanThumbSkippedNoUrl = 0;
 
     const outRows = [];
     const leadtimeReview = [];
@@ -1196,8 +1232,9 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       // 文字無し1枚目画像が(品番一致で)見つかった場合は、Shopifyの画像列だけ先頭に差し込む
       // (Body内の商品説明ギャラリーはURLが必要なため、こちらは元のauPAY画像のままにする)
       const cleanThumbEntry = cleanThumbLookup[itemCode.toLowerCase()] || cleanThumbLookup[mgmtId.toLowerCase()];
-      const rowImages = cleanThumbEntry ? [cleanThumbEntry.outName].concat(images) : images;
-      if (cleanThumbEntry) cleanThumbApplied++;
+      const rowImages = (cleanThumbEntry && cleanThumbEntry.url) ? [cleanThumbEntry.url].concat(images) : images;
+      if (cleanThumbEntry && cleanThumbEntry.url) cleanThumbApplied++;
+      else if (cleanThumbEntry) cleanThumbSkippedNoUrl++;
 
       const fieldRules = computeFieldRules(it);
 
@@ -1309,6 +1346,9 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
     const warnEl = document.getElementById('warnList');
     const warnBlocks = [];
+    if (cleanThumbSkippedNoUrl) {
+      warnBlocks.push('⚠️ 文字無し1枚目画像が' + cleanThumbSkippedNoUrl + '件、品番は一致しましたが「画像公開URLのベース」が未入力のため反映されませんでした。URLを入力してから再度変換してください。');
+    }
     if (leadtimeReview.length) {
       warnBlocks.push('⚠️ 納期(Variant Metafield: custom.leadtime)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
         leadtimeReview.map(([mid, opt]) => '・' + mid + (opt ? ' (' + opt + ')' : '')).join('<br>'));
@@ -1346,7 +1386,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
     return;
   }
   const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  downloadCSV('shopify_' + currentStore + '_' + today + '.csv', HEADER, lastOutputRows.map(r => HEADER.map(h => r[h])));
+  downloadCSV('shopify_' + currentStore + '_' + today + '.csv', HEADER, lastOutputRows.map(r => HEADER.map(h => r[h])), { noBom: true });
 });
 
 document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
@@ -1379,6 +1419,7 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
   cols.push('Variant Command');
 
   let image1Matched = 0;
+  let image1SkippedNoUrl = 0;
   const rows = [];
   let prevHandle = null;
   lastOutputRows.forEach(r => {
@@ -1396,11 +1437,13 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
         const key1 = (r.Handle || '').trim().toLowerCase();
         const key2 = (r['Variant SKU'] || '').trim().toLowerCase();
         const matched = cleanThumbLookup[key1] || cleanThumbLookup[key2];
-        if (matched) {
-          out['Image Src'] = matched.outName;
+        if (matched && matched.url) {
+          out['Image Src'] = matched.url;
           out['Image Position'] = '1';
           out['Image Command'] = 'MERGE';
           image1Matched++;
+        } else if (matched) {
+          image1SkippedNoUrl++;
         }
       }
     }
@@ -1413,15 +1456,19 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', () => {
   });
 
   const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  downloadCSV('shopify_' + currentStore + '_選択更新_' + today + '.csv', cols, rows.map(r => cols.map(c => r[c])));
+  downloadCSV('shopify_' + currentStore + '_選択更新_' + today + '.csv', cols, rows.map(r => cols.map(c => r[c])), { noBom: true });
 
   const statusEl = document.getElementById('selUpdateStatus');
   if (statusEl) {
-    statusEl.textContent = wantImage1
+    let msg = wantImage1
       ? '✓ ダウンロードしました(1枚目画像が一致した商品: ' + image1Matched + '件)'
       : '✓ ダウンロードしました';
+    if (wantImage1 && image1SkippedNoUrl) {
+      msg += ' ※品番は一致したが「画像公開URLのベース」未入力のため反映されなかった商品: ' + image1SkippedNoUrl + '件';
+    }
+    statusEl.textContent = msg;
     clearTimeout(statusEl._t);
-    statusEl._t = setTimeout(() => { statusEl.textContent = ''; }, 5000);
+    statusEl._t = setTimeout(() => { statusEl.textContent = ''; }, 8000);
   }
 });
 
