@@ -115,13 +115,13 @@
       <p class="hint" id="cleanThumbStatus" style="margin-top:4px;"></p>
 
       <div style="margin-top:12px; padding:10px; border:1px solid #eee; border-radius:6px;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <label style="font-weight:normal; font-size:12px; color:#666;">画像公開URLのベース(GitHub Pagesなど、画像を置く場所のURLの先頭部分)</label><br>
+        <input type="text" id="imageBaseUrl" style="width:100%;" placeholder="https://digkag.github.io/product-images/">
+        <div style="display:flex; align-items:center; gap:10px; margin-top:10px; margin-bottom:4px;">
           <button class="btn secondary small" id="buildCleanThumbZipBtn" type="button">アップロード用にリネームしたZIPを作成</button>
           <span class="hint" id="cleanThumbZipStatus"></span>
         </div>
-        <p class="hint">↑このZIPを解凍し、中の画像をShopify管理画面(コンテンツ→ファイル)などへアップロードしてください。アップロード後に発行される公開URLを、下の欄に「元のファイル名,URL」の形式で1行ずつ貼り付けてください(ファイル名は拡張子を含めても含めなくても構いません)。</p>
-        <label style="font-weight:normal; font-size:12px; color:#666;">画像URL対応表</label><br>
-        <textarea id="cleanThumbUrlMapText" rows="5" style="width:100%; font-family:monospace; font-size:12px;" placeholder="hz-r16,https://cdn.shopify.com/s/files/1/xxxx/xxxx/files/hz-r16-1st.jpg&#10;ul-mn16s1m,https://cdn.shopify.com/s/files/1/xxxx/xxxx/files/ul-mn16s1m-1st.jpg"></textarea>
+        <p class="hint">↑このZIPを解凍し、中の画像を上記URLの場所(例: GitHubリポジトリの該当フォルダ)へアップロードしてください。アップロードが完了していれば、URLを個別に入力しなくても自動でImage Srcに反映されます。</p>
       </div>
     </div>
   </div>
@@ -1000,24 +1000,24 @@ function splitNameExt(name) {
   return [base, ext];
 }
 
-// 画像URL対応表。テキストエリアに「元のファイル名,URL」を1行ずつ入力してもらう。
-function parseCleanThumbUrlMap() {
-  const el = document.getElementById('cleanThumbUrlMapText');
-  const text = (el && el.value) || '';
-  const map = {};
-  text.split(/\r?\n/).forEach(line => {
-    const trimmed = line.trim();
-    if (!trimmed) return;
-    const parts = trimmed.split(/[,\t]/);
-    if (parts.length < 2) return;
-    const rawName = parts[0].trim();
-    const url = parts.slice(1).join(',').trim();
-    if (!rawName || !url) return;
-    const [base] = splitNameExt(rawName);
-    const key = base.toLowerCase();
-    if (key) map[key] = url;
-  });
-  return map;
+// 画像公開URLのベース(例: https://digkag.github.io/product-images/)。localStorageに保存し次回も引き継ぐ。
+const imageBaseUrlEl = document.getElementById('imageBaseUrl');
+imageBaseUrlEl.value = localStorage.getItem('imageBaseUrl') || '';
+imageBaseUrlEl.addEventListener('input', () => {
+  localStorage.setItem('imageBaseUrl', imageBaseUrlEl.value);
+  updateCleanThumbStatus();
+});
+function getImageBaseUrl() {
+  let v = (imageBaseUrlEl.value || '').trim();
+  if (v && !v.endsWith('/')) v += '/';
+  return v;
+}
+// outName(品番+接尾辞+拡張子)からベースURLを使って公開URLを組み立てる。
+// ベースURL未設定、またはアップロード未完了の場合は空文字を返す(呼び出し側で未反映として扱う)。
+function buildImageUrl(outName) {
+  const base = getImageBaseUrl();
+  if (!base) return '';
+  return base + encodeURIComponent(outName);
 }
 
 function updateCleanThumbStatus() {
@@ -1025,15 +1025,16 @@ function updateCleanThumbStatus() {
   if (!statusEl) return;
   const count = Object.keys(cleanThumbLookup).length;
   if (!count) {
-    statusEl.textContent = 'ZIPを選択後、「アップロード用にリネームしたZIPを作成」でリネーム済みZIPを作成し、アップロード先で発行されたURLを対応表に貼り付けてください。';
+    statusEl.textContent = 'ZIPを選択後、「アップロード用にリネームしたZIPを作成」でリネーム済みZIPを作成し、上記URLの場所へアップロードしてください。';
     return;
   }
-  const urlMap = parseCleanThumbUrlMap();
-  const matchedUrlCount = Object.keys(cleanThumbLookup).filter(k => urlMap[k]).length;
-  statusEl.textContent = '✓ 画像' + count + '枚を検出。URL対応表と一致: ' + matchedUrlCount + '件' +
-    (matchedUrlCount < count ? '(残り' + (count - matchedUrlCount) + '件はURL未入力のため反映されません)' : '');
+  const baseUrl = getImageBaseUrl();
+  if (!baseUrl) {
+    statusEl.textContent = '⚠ 画像' + count + '枚を検出しましたが、「画像公開URLのベース」が未入力です。入力しないとImage Srcが空欄になります。';
+    return;
+  }
+  statusEl.textContent = '✓ 画像' + count + '枚を検出。品番が一致した商品の1枚目に、公開URL(' + baseUrl + '+ファイル名)を差し込みます。※事前にこの画像を上記URLへアップロード済みであることを確認してください。';
 }
-document.getElementById('cleanThumbUrlMapText').addEventListener('input', updateCleanThumbStatus);
 
 // ZIPファイル選択から、中に入っている画像をブラウザ内で解凍してBase64として読み込む。
 async function buildCleanThumbLookup() {
@@ -1214,7 +1215,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const markupInt = Math.round(markup * 100);
 
     await buildCleanThumbLookup();
-    const cleanThumbUrlMap = parseCleanThumbUrlMap();
     let cleanThumbApplied = 0;
     let cleanThumbSkippedNoUrl = 0;
 
@@ -1273,7 +1273,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       const cleanThumbEntry = cleanThumbLookup[thumbKey1] || cleanThumbLookup[thumbKey2];
       let rowImages = images;
       if (cleanThumbEntry) {
-        const thumbUrl = cleanThumbUrlMap[thumbKey1] || cleanThumbUrlMap[thumbKey2];
+        const thumbUrl = buildImageUrl(cleanThumbEntry.outName);
         if (thumbUrl) {
           rowImages = [thumbUrl].concat(images);
           cleanThumbApplied++;
@@ -1391,7 +1391,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const warnEl = document.getElementById('warnList');
     const warnBlocks = [];
     if (cleanThumbSkippedNoUrl) {
-      warnBlocks.push('⚠️ 文字無し1枚目画像が' + cleanThumbSkippedNoUrl + '件、品番は一致しましたが「画像URL対応表」にURLが見つからず反映されませんでした。アップロード後のURLを対応表に追記して再度変換してください。');
+      warnBlocks.push('⚠️ 文字無し1枚目画像が' + cleanThumbSkippedNoUrl + '件、品番は一致しましたが「画像公開URLのベース」が未入力のため反映されませんでした。URLを入力してから再度変換してください。');
     }
     if (leadtimeReview.length) {
       warnBlocks.push('⚠️ 納期(Variant Metafield: custom.leadtime)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
@@ -1452,7 +1452,6 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', async (
     return;
   }
   if (wantImage1) await buildCleanThumbLookup();
-  const cleanThumbUrlMap = wantImage1 ? parseCleanThumbUrlMap() : {};
   const cols = ['Handle', 'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Variant SKU'];
   if (wantPrice) cols.push('Variant Price');
   if (wantWeight) cols.push('Variant Grams');
@@ -1483,7 +1482,7 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', async (
         const key2 = (r['Variant SKU'] || '').trim().toLowerCase();
         const matched = cleanThumbLookup[key1] || cleanThumbLookup[key2];
         if (matched) {
-          const thumbUrl = cleanThumbUrlMap[key1] || cleanThumbUrlMap[key2];
+          const thumbUrl = buildImageUrl(matched.outName);
           if (thumbUrl) {
             out['Image Src'] = thumbUrl;
             out['Image Position'] = '1';
