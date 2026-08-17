@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>auPAY → Shopify CSV 変換ツール</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -105,8 +106,17 @@
   </div>
   <div class="row">
     <div>
-      <label>文字無し1枚目画像(任意。フォルダを選択してください。ファイル名(拡張子除く)が品番(itemCode/itemManagementId)と一致する商品だけ、1枚目の画像として差し込まれます)</label>
-      <input type="file" id="cleanThumbFiles" accept="image/*" multiple webkitdirectory>
+      <label>文字無し1枚目画像(任意。ファイル名(拡張子除く)が品番(itemCode/itemManagementId)と一致する商品だけ、1枚目の画像として差し込まれます)</label>
+      <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end; margin-top:6px;">
+        <div>
+          <label style="font-weight:normal; font-size:12px; color:#666;">フォルダを選択</label><br>
+          <input type="file" id="cleanThumbFiles" accept="image/*" multiple webkitdirectory>
+        </div>
+        <div>
+          <label style="font-weight:normal; font-size:12px; color:#666;">またはZIPファイルを選択</label><br>
+          <input type="file" id="cleanThumbZipFile" accept=".zip">
+        </div>
+      </div>
       <p class="hint" id="cleanThumbStatus" style="margin-top:4px;">選択した画像はどこかへアップロードする必要はありません。CSVの「Image Attachment」列に画像データを直接埋め込みます(Matrixifyがそのまま取り込みます)。※画像枚数や1枚あたりのサイズが大きいとCSVファイルも大きくなります。</p>
     </div>
   </div>
@@ -982,7 +992,25 @@ let dataSourceMode = 'aupay'; // 'aupay' = auPAYからの新規変換 / 'existin
 // ままにすると既存登録画像と名前が衝突し、Matrixify/Shopify側で意図しない画像が使われる恐れがあるため、
 // CSV上の参照名は必ず接尾辞付きの別名にする(実ファイルの中身は同じ画像で問題ない)。
 const CLEAN_THUMB_SUFFIX = '-1st';
-let cleanThumbLookup = {};
+let cleanThumbLookup = {};      // マージ後の最終結果 (フォルダ + ZIP)
+let cleanThumbFolderEntries = {}; // フォルダ選択から読み込んだ分
+let cleanThumbZipEntries = {};    // ZIP選択から読み込んだ分
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|bmp)$/i;
+function mimeFromExt(ext) {
+  const e = ext.toLowerCase();
+  if (e === '.png') return 'image/png';
+  if (e === '.gif') return 'image/gif';
+  if (e === '.webp') return 'image/webp';
+  if (e === '.bmp') return 'image/bmp';
+  return 'image/jpeg';
+}
+function splitNameExt(name) {
+  const base0 = name.split('/').pop(); // ZIP内のパス区切りを除去
+  const dot = base0.lastIndexOf('.');
+  const base = (dot > 0 ? base0.slice(0, dot) : base0).trim();
+  const ext = dot > 0 ? base0.slice(dot) : '';
+  return [base, ext];
+}
 
 function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
@@ -993,33 +1021,8 @@ function readFileAsDataURL(file) {
   });
 }
 
-// 文字無し1枚目画像を選択すると、画像データをBase64(data URL)として読み込んでおく。
-// Matrixifyの「Image Attachment」列にこのデータをそのまま埋め込むため、外部への
-// アップロードやURL発行は不要。
-async function buildCleanThumbLookup() {
-  cleanThumbLookup = {};
-  const files = document.getElementById('cleanThumbFiles').files;
+function updateCleanThumbStatus() {
   const statusEl = document.getElementById('cleanThumbStatus');
-  const entries = [];
-  for (const f of files) {
-    const name = f.name;
-    const dot = name.lastIndexOf('.');
-    const base = (dot > 0 ? name.slice(0, dot) : name).trim();
-    const ext = dot > 0 ? name.slice(dot) : '';
-    const key = base.toLowerCase();
-    if (key && !cleanThumbLookup[key] && !entries.some(e => e.key === key)) {
-      entries.push({ key, file: f, outName: base + CLEAN_THUMB_SUFFIX + ext });
-    }
-  }
-  if (statusEl && entries.length) statusEl.textContent = '読み込み中...(' + entries.length + '枚)';
-  for (const e of entries) {
-    try {
-      const dataUrl = await readFileAsDataURL(e.file);
-      cleanThumbLookup[e.key] = { file: e.file, outName: e.outName, dataUrl };
-    } catch (err) {
-      console.error('画像の読み込みに失敗しました:', e.file.name, err);
-    }
-  }
   const count = Object.keys(cleanThumbLookup).length;
   if (statusEl) {
     statusEl.textContent = count
@@ -1027,7 +1030,65 @@ async function buildCleanThumbLookup() {
       : '選択した画像はどこかへアップロードする必要はありません。CSVの「Image Attachment」列に画像データを直接埋め込みます(Matrixifyがそのまま取り込みます)。※画像枚数や1枚あたりのサイズが大きいとCSVファイルも大きくなります。';
   }
 }
+function recomputeCleanThumbLookup() {
+  cleanThumbLookup = Object.assign({}, cleanThumbZipEntries, cleanThumbFolderEntries);
+  updateCleanThumbStatus();
+}
+
+// フォルダ選択から画像データをBase64(data URL)として読み込む。
+async function loadCleanThumbFolder() {
+  cleanThumbFolderEntries = {};
+  const files = document.getElementById('cleanThumbFiles').files;
+  const entries = [];
+  for (const f of files) {
+    const [base, ext] = splitNameExt(f.name);
+    const key = base.toLowerCase();
+    if (key && !entries.some(e => e.key === key)) {
+      entries.push({ key, file: f, outName: base + CLEAN_THUMB_SUFFIX + ext });
+    }
+  }
+  for (const e of entries) {
+    try {
+      const dataUrl = await readFileAsDataURL(e.file);
+      cleanThumbFolderEntries[e.key] = { outName: e.outName, dataUrl };
+    } catch (err) {
+      console.error('画像の読み込みに失敗しました:', e.file.name, err);
+    }
+  }
+}
+
+// ZIPファイル選択から、中に入っている画像をブラウザ内で解凍してBase64(data URL)として読み込む。
+async function loadCleanThumbZip() {
+  cleanThumbZipEntries = {};
+  const zipFile = document.getElementById('cleanThumbZipFile').files[0];
+  if (!zipFile) return;
+  if (typeof JSZip === 'undefined') {
+    console.error('JSZipが読み込めませんでした(インターネット接続をご確認ください)。');
+    return;
+  }
+  try {
+    const buf = await readFileAsArrayBuffer(zipFile);
+    const zip = await JSZip.loadAsync(buf);
+    const names = Object.keys(zip.files).filter(n => !zip.files[n].dir && IMAGE_EXT_RE.test(n));
+    for (const name of names) {
+      const [base, ext] = splitNameExt(name);
+      const key = base.toLowerCase();
+      if (!key || cleanThumbZipEntries[key]) continue;
+      const b64 = await zip.files[name].async('base64');
+      cleanThumbZipEntries[key] = { outName: base + CLEAN_THUMB_SUFFIX + ext, dataUrl: 'data:' + mimeFromExt(ext) + ';base64,' + b64 };
+    }
+  } catch (err) {
+    console.error('ZIPの読み込みに失敗しました:', err);
+  }
+}
+
+// 変換実行前に呼び出す。フォルダ・ZIPどちらの選択も反映してcleanThumbLookupを最新化する。
+async function buildCleanThumbLookup() {
+  await Promise.all([loadCleanThumbFolder(), loadCleanThumbZip()]);
+  recomputeCleanThumbLookup();
+}
 document.getElementById('cleanThumbFiles').addEventListener('change', buildCleanThumbLookup);
+document.getElementById('cleanThumbZipFile').addEventListener('change', buildCleanThumbLookup);
 
 function populateHeaderDatalist() {
   const dl = document.getElementById('allHeaderColumns');
