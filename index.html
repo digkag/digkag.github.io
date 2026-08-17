@@ -1430,7 +1430,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
     return;
   }
   const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  downloadCSV('shopify_' + currentStore + '_' + today + '.csv', HEADER, lastOutputRows.map(r => HEADER.map(h => r[h])), { noBom: true });
+  downloadCSV('shopify_' + currentStore + '_' + today + '.csv', HEADER, lastOutputRows.map(r => HEADER.map(h => r[h])));
 });
 
 document.getElementById('downloadSelectedBtn').addEventListener('click', async () => {
@@ -1503,7 +1503,7 @@ document.getElementById('downloadSelectedBtn').addEventListener('click', async (
   });
 
   const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  downloadCSV('shopify_' + currentStore + '_選択更新_' + today + '.csv', cols, rows.map(r => cols.map(c => r[c])), { noBom: true });
+  downloadCSV('shopify_' + currentStore + '_選択更新_' + today + '.csv', cols, rows.map(r => cols.map(c => r[c])));
 
   const statusEl = document.getElementById('selUpdateStatus');
   if (statusEl) {
