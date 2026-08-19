@@ -895,19 +895,6 @@ function toRecords(rows) {
   return { records };
 }
 
-function extractBodyAndBanner(desc) {
-  if (!desc) return ['', ''];
-  const marker = '</center>';
-  const idxc = desc.lastIndexOf(marker);
-  if (idxc === -1) return [desc.trim(), ''];
-  const head = desc.slice(0, idxc);
-  let tail = desc.slice(idxc + marker.length);
-  const imgs = [...head.matchAll(/<img src="([^"]+)"/g)].map(m => m[1]);
-  const banner = imgs.length ? imgs[imgs.length - 1] : '';
-  tail = tail.trim().replace(/^(<br\s*\/?>)+/i, '');
-  return [tail.trim(), banner];
-}
-
 function normalizeLeadtime(txt) {
   if (!txt) return '';
   txt = txt.replace(/〜/g, '～');
@@ -1221,6 +1208,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const outRows = [];
     const leadtimeReview = [];
     const typeReview = [];
+    const blankHandleReview = [];
 
     // Type/Tags判定: 通常はキーワードベース(guessType)でTypeのみ、Tagsは更新ルールで決定。
     // ジャンルIDベースが有効な店舗は 楽天の品番→ジャンルID→(マスタ)→Type/Tags の順で解決し、
@@ -1252,10 +1240,16 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       const mgmtId = (it.itemManagementId || '').trim();
       const itemCode = (it.itemCode || '').trim();
       if (!mgmtId) continue;
+      if (!itemCode) {
+        // Handle(=itemCode)が空だと、ShopifyがTitleから自動でハンドル(URL)を生成してしまい、
+        // 日本語タイトルがそのままローマ字変換された不自然なURLになる。安全のためスキップする。
+        blankHandleReview.push([mgmtId, (it.itemName || '').slice(0, 40)]);
+        continue;
+      }
 
       const handle = itemCode;
       const title = (it.itemName || '').replace('【送料無料】', '');
-      const [bodyText, banner] = extractBodyAndBanner(it.descriptionForPC);
+      const bodyText = (it.descriptionForPC || '').trim();
       const price = it.itemPrice ? Math.floor((+it.itemPrice) * markupInt / 100) : '';
 
       const images = [];
@@ -1263,7 +1257,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
         const u = (it['imageUrl' + n] || '').trim();
         if (u) images.push(u);
       }
-      if (banner) images.push(banner);
       const galleryHtml = images.map(u => '<img src="' + u + '"><br>').join('');
       const bodyHtml = bodyText + '<br><br>' + galleryHtml;
 
@@ -1390,6 +1383,10 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
     const warnEl = document.getElementById('warnList');
     const warnBlocks = [];
+    if (blankHandleReview.length) {
+      warnBlocks.push('⚠️ 品番(itemCode)が空だったため出力から除外した商品(' + blankHandleReview.length + '件。Handleが空のままだとShopifyがTitleから不自然なURLを自動生成してしまうため除外しています。取込む場合は元データのitemCodeを確認し、手動で追加してください):<br>' +
+        blankHandleReview.map(([mid, title]) => '・' + mid + (title ? ' (' + title + ')' : '')).join('<br>'));
+    }
     if (cleanThumbSkippedNoUrl) {
       warnBlocks.push('⚠️ 文字無し1枚目画像が' + cleanThumbSkippedNoUrl + '件、品番は一致しましたが「画像公開URLのベース」が未入力のため反映されませんでした。URLを入力してから再度変換してください。');
     }
