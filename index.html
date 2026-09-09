@@ -1007,6 +1007,16 @@ function buildImageUrl(outName) {
   return base + encodeURIComponent(outName);
 }
 
+function stripAupayRelatedLinkBlock(html) {
+  if (!html) return html;
+  // auPAY商品説明の先頭に挿入されている「関連サイズ/シリーズ」リンク表(<!--Link-->〜<!--Link-->)を除去。
+  // 表内リンクはauPAYサイト内の相対パス(例: /u/6881526/c/xxxx)のためShopify側では機能しない。
+  let out = html.replace(/<!--\s*Link\s*-->[\s\S]*?<!--\s*Link\s*-->/gi, '');
+  // 表を挟んでいた<center>タグが<br>だけの空箱として残った場合は併せて除去
+  out = out.replace(/<center>\s*(?:<br\s*\/?>\s*)*<\/center>/gi, '');
+  return out;
+}
+
 function updateCleanThumbStatus() {
   const statusEl = document.getElementById('cleanThumbStatus');
   if (!statusEl) return;
@@ -1249,7 +1259,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
       const handle = itemCode;
       const title = (it.itemName || '').replace('【送料無料】', '');
-      const bodyText = (it.descriptionForPC || '').trim();
+      const bodyText = stripAupayRelatedLinkBlock((it.descriptionForPC || '').trim());
       const price = it.itemPrice ? Math.floor((+it.itemPrice) * markupInt / 100) : '';
 
       const images = [];
