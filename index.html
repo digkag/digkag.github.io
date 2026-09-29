@@ -125,6 +125,27 @@
       </div>
     </div>
   </div>
+
+  <div class="row" style="margin-top:20px;">
+    <div>
+      <label>文字なし画像・文字入り画像のURL対応表(任意。どちらも品番(itemCode)またはitemManagementIdで商品と照合します。画像を自動推測することはしません — ここで指定した分だけ反映されます)</label>
+      <p class="hint">1行に「品番,画像URL」または「品番&lt;タブ&gt;画像URL」の形式で入力してください(Excelから2列を選択してコピー&amp;ペースト可)。#で始まる行・空行は無視します。画像はあらかじめどこか(Shopifyのファイル、GitHub Pagesなど)へアップロード済みで、直接アクセスできるURLである必要があります。</p>
+      <p class="hint">用途の使い分け: 「文字なし画像」は商品詳細ページの1枚目(Image Position 1)に使われ、Google広告フィードの image_link もこの1枚目画像を参照する想定です(フィードアプリ側の設定確認が別途必要です。詳細は変換ツール外のご案内を参照してください)。「文字入り画像」は custom.card_image_url に出力され、サイト内の商品カード表示にのみ使われます。2枚目以降のImage Src(商品ページの画像ギャラリー)には、これまでどおり元のauPAY画像(文字入りであることが多い)がそのまま出力されます — この部分は今回変更していません。</p>
+
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;">
+        <div style="flex:1; min-width:280px;">
+          <label style="font-weight:normal; font-size:12px; color:#666;">文字なし画像URL対応表(1枚目 / Image position 1 に出力。上の「文字無し1枚目画像ZIP」より優先されます)</label>
+          <textarea id="noTextImageMapText" rows="6" style="width:100%; font-family:monospace; font-size:12px;" placeholder="0k-kpskb70,https://digkag.github.io/product-images/0k-kpskb70-notext.png"></textarea>
+          <p class="hint" id="noTextImageMapStatus" style="margin-top:4px;"></p>
+        </div>
+        <div style="flex:1; min-width:280px;">
+          <label style="font-weight:normal; font-size:12px; color:#666;">文字入り画像URL対応表(商品メタフィールド custom.card_image_url に出力。サイト内の商品カード(トップ・コレクション・検索結果等)専用です。Google広告のimage_linkには使われません — Google広告には左の「文字なし画像」がそのまま使われる想定です)</label>
+          <textarea id="cardImageMapText" rows="6" style="width:100%; font-family:monospace; font-size:12px;" placeholder="0k-kpskb70,https://digkag.github.io/product-images/0k-kpskb70-card.jpg"></textarea>
+          <p class="hint" id="cardImageMapStatus" style="margin-top:4px;"></p>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section>
@@ -477,6 +498,12 @@ const PRODUCT_METAFIELD_COLUMNS = [
   'Metafield: custom.product-badge [list.single_line_text_field]',      // バッジアイコンテキスト ✓確認済み
 ];
 
+// 商品カード(トップ・コレクション・検索結果等)用の「文字入り画像」URLを格納するメタフィールド。
+// 値は下記「文字入り画像URL対応表」で指定されたURLをそのまま出力する(推測での自動割当は行わない)。
+// 用途はサイト内の商品カード表示のみ。Google広告フィードのimage_linkはこの値を使わず、
+// 1枚目(Image Position 1 = 文字なし画像。指定が無い商品は従来通りの1枚目)を参照する想定。
+const CARD_IMAGE_METAFIELD_COLUMN = 'Metafield: custom.card_image_url [url]';
+
 const HEADER = ['Handle','Title','Body (HTML)','Vendor','Product Category','Type','Tags','Published',
 'Option1 Name','Option1 Value','Option2 Name','Option2 Value','Option3 Name','Option3 Value',
 'Variant SKU','Variant Grams','Variant Inventory Tracker','Variant Inventory Qty','Variant Inventory Policy',
@@ -489,6 +516,7 @@ const HEADER = ['Handle','Title','Body (HTML)','Vendor','Product Category','Type
 'Variant Image','Variant Weight Unit','Variant Tax Code','Cost per item','Included / Japan','Price / Japan',
 'Compare At Price / Japan','Included / International','Price / International','Compare At Price / International',
 'Status','Variant Metafield: custom.leadtime [single_line_text_field]',
+CARD_IMAGE_METAFIELD_COLUMN,
 'Variant Command','Image Command'].concat(PRODUCT_METAFIELD_COLUMNS);
 
 function renderStoreTabs() {
@@ -962,9 +990,12 @@ function blankRow() {
   return r;
 }
 
-function assignImageToRow(row, img, command) {
+// position(1始まり)を渡すとImage Positionへ明示的に設定する。
+// 未指定(既存商品の部分更新など、他の場所で個別にImage Positionを設定している呼び出し)の場合は従来通り触らない。
+function assignImageToRow(row, img, command, position) {
   row['Image Src'] = img;
   row['Image Command'] = command;
+  if (position !== undefined && position !== null) row['Image Position'] = String(position);
 }
 
 let lastOutputRows = null;
@@ -1020,6 +1051,72 @@ function stripAupayRelatedLinkBlock(html) {
   out = out.replace(/<center>\s*(?:<br\s*\/?>\s*)*<\/center>/gi, '');
   return out;
 }
+
+// 文字なし画像・文字入り画像のURL対応表(手動指定分)。
+// key: itemCode または itemManagementId を小文字化したもの / value: 画像URL。
+// 「画像を勝手に推測して割り当てない」方針のため、ここに明示的に指定された商品だけが対象になる。
+let noTextImageMap = {};
+let cardImageMap = {};
+let noTextImageMapWarnings = [];
+let cardImageMapWarnings = [];
+const IMAGE_URL_RE = /^https?:\/\//i;
+
+// 「品番,画像URL」(カンマ区切り、またはExcel貼り付け用のタブ区切り)を1行ずつ解析する。
+// #開始行・空行は無視。URL形式でない行や、対応表内で品番が重複した行は取り込まず、warningsに記録する
+// (2件目以降の重複は無視し、最初に読み込んだ行を優先する)。
+function parseImageUrlMap(text, label) {
+  const map = {};
+  const warnings = [];
+  let matched = 0;
+  (text || '').split(/\r?\n/).forEach((line, i) => {
+    const raw = line.trim();
+    if (!raw || raw.startsWith('#')) return;
+    const parts = raw.split(/\t|,/);
+    const code = (parts[0] || '').trim();
+    const url = parts.slice(1).join(',').trim();
+    if (!code || !url) {
+      warnings.push(label + ' ' + (i + 1) + '行目: 「品番,画像URL」の形式で読み取れませんでした(' + raw.slice(0, 50) + ')');
+      return;
+    }
+    if (!IMAGE_URL_RE.test(url)) {
+      warnings.push(label + ' ' + (i + 1) + '行目: URLがhttp(s)://で始まっていません(' + url.slice(0, 60) + ')');
+      return;
+    }
+    const key = code.toLowerCase();
+    if (map[key]) {
+      warnings.push(label + ' ' + (i + 1) + '行目: 品番「' + code + '」が対応表内で重複しています(先に読み込んだ行を優先し、この行は無視しました)');
+      return;
+    }
+    map[key] = url;
+    matched++;
+  });
+  return { map, warnings, matched };
+}
+
+function describeImageUrlMapStatus(result) {
+  if (!result.matched && !result.warnings.length) return '';
+  let html = result.matched ? ('✓ ' + result.matched + '件読み込みました') : '';
+  if (result.warnings.length) {
+    if (html) html += ' / ';
+    html += '<span style="color:#c00;">⚠ 読み取れなかった行が' + result.warnings.length + '件あります(変換時の警告欄にも表示されます)</span>';
+  }
+  return html;
+}
+
+// テキストエリアの内容を解析してnoTextImageMap/cardImageMapへ反映する。
+// 変換実行時にも必ず呼び出す(変換ボタン押下時点の最新の内容を使うため)。
+function refreshImageUrlMaps() {
+  const noTextResult = parseImageUrlMap(document.getElementById('noTextImageMapText').value, '文字なし画像URL対応表');
+  const cardResult = parseImageUrlMap(document.getElementById('cardImageMapText').value, '文字入り画像URL対応表');
+  noTextImageMap = noTextResult.map;
+  cardImageMap = cardResult.map;
+  noTextImageMapWarnings = noTextResult.warnings;
+  cardImageMapWarnings = cardResult.warnings;
+  document.getElementById('noTextImageMapStatus').innerHTML = describeImageUrlMapStatus(noTextResult);
+  document.getElementById('cardImageMapStatus').innerHTML = describeImageUrlMapStatus(cardResult);
+}
+document.getElementById('noTextImageMapText').addEventListener('input', refreshImageUrlMaps);
+document.getElementById('cardImageMapText').addEventListener('input', refreshImageUrlMaps);
 
 function updateCleanThumbStatus() {
   const statusEl = document.getElementById('cleanThumbStatus');
@@ -1216,8 +1313,12 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const markupInt = Math.round(markup * 100);
 
     await buildCleanThumbLookup();
+    refreshImageUrlMaps();
     let cleanThumbApplied = 0;
     let cleanThumbSkippedNoUrl = 0;
+    let cardApplied = 0;
+    const noTextMapUsedKeys = new Set();
+    const cardMapUsedKeys = new Set();
 
     const outRows = [];
     const leadtimeReview = [];
@@ -1274,19 +1375,43 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       const galleryHtml = images.map(u => '<img src="' + u + '"><br>').join('');
       const bodyHtml = bodyText + '<br><br>' + galleryHtml;
 
-      // 文字無し1枚目画像が(品番一致で)見つかった場合は、Shopifyの画像列だけ先頭に差し込む
-      // (Body内の商品説明ギャラリーはURLが必要なため、こちらは元のauPAY画像のままにする)
+      // 文字なし画像(1枚目差し替え用)・文字入り画像(custom.card_image_url用)を品番/管理番号で照合する。
+      // 優先順位: ①「文字なし画像URL対応表」に直接指定されたURL ②従来のZIPアップロード機能(文字無し1枚目画像)。
+      // どちらにも一致しなければ、従来どおりauPAYの1枚目画像(images[0])がそのまま1枚目になる(=既存の変換結果を維持)。
+      // 2枚目以降のImage Srcには、文字なし画像ではなく元のauPAY画像(文字入りであることが多い)がそのまま入る
+      // (=商品詳細ページの画像ギャラリーの2枚目以降には文字入り画像が表示される。この仕様は変更していない)。
+      // Body内の商品説明ギャラリーも常に元のauPAY画像のままにする(URLが必要なため)。
+      // Google広告フィードのimage_linkは、custom.card_image_url(文字入り/商品カード専用)ではなく、
+      // 1枚目(Image Position 1。文字なし画像が指定されていればそれ、無指定なら従来の1枚目)を参照する想定。
+      // 実際にどの画像がimage_linkに使われるかはフィードアプリ側の設定に依存するため、別途Merchant Centerでの確認が必要。
       const thumbKey1 = itemCode.toLowerCase(), thumbKey2 = mgmtId.toLowerCase();
-      const cleanThumbEntry = cleanThumbLookup[thumbKey1] || cleanThumbLookup[thumbKey2];
-      let rowImages = images;
-      if (cleanThumbEntry) {
-        const thumbUrl = buildImageUrl(cleanThumbEntry.outName);
-        if (thumbUrl) {
-          rowImages = [thumbUrl].concat(images);
-          cleanThumbApplied++;
-        } else {
-          cleanThumbSkippedNoUrl++;
+      let noTextUrl = noTextImageMap[thumbKey1] || noTextImageMap[thumbKey2] || '';
+      if (noTextUrl) {
+        if (noTextImageMap[thumbKey1]) noTextMapUsedKeys.add(thumbKey1);
+        if (noTextImageMap[thumbKey2]) noTextMapUsedKeys.add(thumbKey2);
+      } else {
+        const cleanThumbEntry = cleanThumbLookup[thumbKey1] || cleanThumbLookup[thumbKey2];
+        if (cleanThumbEntry) {
+          const thumbUrl = buildImageUrl(cleanThumbEntry.outName);
+          if (thumbUrl) {
+            noTextUrl = thumbUrl;
+          } else {
+            cleanThumbSkippedNoUrl++;
+          }
         }
+      }
+      let rowImages = images;
+      if (noTextUrl) {
+        rowImages = [noTextUrl].concat(images);
+        cleanThumbApplied++;
+      }
+
+      // 文字入り画像(サイト内の商品カード表示専用。Google広告フィードには使わない)。custom.card_image_url に出力する。
+      const cardUrl = cardImageMap[thumbKey1] || cardImageMap[thumbKey2] || '';
+      if (cardUrl) {
+        if (cardImageMap[thumbKey1]) cardMapUsedKeys.add(thumbKey1);
+        if (cardImageMap[thumbKey2]) cardMapUsedKeys.add(thumbKey2);
+        cardApplied++;
       }
 
       const fieldRules = computeFieldRules(it);
@@ -1356,7 +1481,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
         row['Variant Metafield: custom.leadtime [single_line_text_field]'] = v.leadtime;
         row['Variant Command'] = 'REPLACE';
         if (i < rowImages.length) {
-          assignImageToRow(row, rowImages[i], 'REPLACE');
+          assignImageToRow(row, rowImages[i], 'REPLACE', i + 1);
         }
         if (i === 0) {
           const genreResult = resolveTypeAndTags(it, mgmtId, itemCode);
@@ -1374,17 +1499,21 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
           row['Google Shopping / Custom Product'] = 'TRUE';
           row['Included / International'] = 'FALSE';
           row.Status = 'active';
+          row[CARD_IMAGE_METAFIELD_COLUMN] = cardUrl;
         }
         outRows.push(row);
       });
 
-      rowImages.slice(variants.length).forEach(img => {
+      rowImages.slice(variants.length).forEach((img, idx) => {
         const row = blankRow();
         row.Handle = handle;
-        assignImageToRow(row, img, 'REPLACE');
+        assignImageToRow(row, img, 'REPLACE', variants.length + idx + 1);
         outRows.push(row);
       });
     }
+
+    const noTextMapOrphans = Object.keys(noTextImageMap).filter(k => !noTextMapUsedKeys.has(k));
+    const cardMapOrphans = Object.keys(cardImageMap).filter(k => !cardMapUsedKeys.has(k));
 
     lastOutputRows = outRows;
     document.getElementById('downloadBtn').disabled = false;
@@ -1393,7 +1522,8 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
     const distinctHandles = new Set(outRows.map(r => r.Handle)).size;
     document.getElementById('summary').innerHTML =
       '店舗: ' + currentStore + ' / 処理商品数: ' + distinctHandles + ' / 出力行数: ' + outRows.length +
-      (cleanThumbApplied ? ' / 1枚目差し替え: ' + cleanThumbApplied + '件' : '');
+      (cleanThumbApplied ? ' / 1枚目差し替え(文字なし画像): ' + cleanThumbApplied + '件' : '') +
+      (cardApplied ? ' / カード画像(custom.card_image_url)設定: ' + cardApplied + '件' : '');
 
     const warnEl = document.getElementById('warnList');
     const warnBlocks = [];
@@ -1412,6 +1542,22 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
       warnBlocks.push('⚠️ Type(ジャンルIDベース判定)が見つからなかった商品(空欄で出力されます。取込前に確認してください):<br>' +
         typeReview.map(([mid, reason]) => '・' + mid + ' — ' + reason).join('<br>'));
     }
+    if (noTextImageMapWarnings.length) {
+      warnBlocks.push('⚠️ 「文字なし画像URL対応表」の読み取りで無視した行(' + noTextImageMapWarnings.length + '件。品番またはURLの形式をご確認ください):<br>' +
+        noTextImageMapWarnings.map(w => '・' + w).join('<br>'));
+    }
+    if (cardImageMapWarnings.length) {
+      warnBlocks.push('⚠️ 「文字入り画像URL対応表」の読み取りで無視した行(' + cardImageMapWarnings.length + '件。品番またはURLの形式をご確認ください):<br>' +
+        cardImageMapWarnings.map(w => '・' + w).join('<br>'));
+    }
+    if (noTextMapOrphans.length) {
+      warnBlocks.push('⚠️ 「文字なし画像URL対応表」に指定されていますが、今回の変換対象商品の中に一致する品番が見つかりませんでした(' + noTextMapOrphans.length + '件。品番の誤り、または対象外の商品の可能性があります):<br>' +
+        noTextMapOrphans.map(k => '・' + k).join('<br>'));
+    }
+    if (cardMapOrphans.length) {
+      warnBlocks.push('⚠️ 「文字入り画像URL対応表」に指定されていますが、今回の変換対象商品の中に一致する品番が見つかりませんでした(' + cardMapOrphans.length + '件。品番の誤り、または対象外の商品の可能性があります):<br>' +
+        cardMapOrphans.map(k => '・' + k).join('<br>'));
+    }
     warnEl.innerHTML = warnBlocks.join('<br><br>');
 
     renderPreview(outRows);
@@ -1424,7 +1570,7 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
 
 function renderPreview(rows) {
   const wrap = document.getElementById('preview-wrap');
-  const previewCols = ['Handle','Title','Type','Tags','Option1 Name','Option1 Value','Option2 Name','Option2 Value','Variant SKU','Variant Price','Variant Grams','Variant Inventory Qty','Image Src','Variant Command'];
+  const previewCols = ['Handle','Title','Type','Tags','Option1 Name','Option1 Value','Option2 Name','Option2 Value','Variant SKU','Variant Price','Variant Grams','Variant Inventory Qty','Image Src','Image Position','Variant Command', CARD_IMAGE_METAFIELD_COLUMN];
   let html = '<table class="preview"><thead><tr>' + previewCols.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
   rows.slice(0, 60).forEach(r => {
     html += '<tr>' + previewCols.map(c => '<td>' + (r[c] || '').toString().slice(0, 60) + '</td>').join('') + '</tr>';
