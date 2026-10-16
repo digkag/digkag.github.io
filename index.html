@@ -1380,8 +1380,6 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
         const u = (it['imageUrl' + n] || '').trim();
         if (u) images.push(u);
       }
-      const galleryHtml = images.map(u => '<img src="' + u + '"><br>').join('');
-      const bodyHtml = bodyText + '<br><br>' + galleryHtml;
 
       // 文字なし画像(1枚目差し替え用)・文字入り画像(custom.card_image_url用)を品番/管理番号で照合する。
       // 優先順位: ①「文字なし画像URL対応表」に直接指定されたURL ②従来のZIPアップロード機能(文字無し1枚目画像)。
@@ -1413,6 +1411,16 @@ document.getElementById('convertBtn').addEventListener('click', async () => {
         rowImages = [noTextUrl].concat(images);
         cleanThumbApplied++;
       }
+
+      // 本文(Body HTML)末尾への「元画像ギャラリー」自動追加は、文字なし画像を指定した商品だけに限定する。
+      // 指定のない商品でこれを付けると、Image Position側(Shopify純正の商品画像ギャラリー。ページ上部の
+      // スワイプ式ギャラリー)とまったく同じ画像が本文の最後にもそのまま並んでしまい、商品ページ上で
+      // 「商品画像が2回表示される」ように見える不具合になる(2026-10-16 ユーザー報告・確認済み)。
+      // 文字なし画像を指定した商品は、商品詳細1枚目がその文字なし画像に差し替わる一方、Image Position
+      // 2枚目以降には元のauPAY画像(文字入りを含む)がそのまま入るため、本文側にも元画像ギャラリーを
+      // 残しておく意味がある(この用途のみ維持する)。
+      const galleryHtml = noTextUrl ? images.map(u => '<img src="' + u + '"><br>').join('') : '';
+      const bodyHtml = galleryHtml ? (bodyText + '<br><br>' + galleryHtml) : bodyText;
 
       // 文字入り画像(サイト内の商品カード表示専用。Google広告フィードには使わない)。custom.card_image_url に出力する。
       const cardUrl = cardImageMap[thumbKey1] || cardImageMap[thumbKey2] || '';
