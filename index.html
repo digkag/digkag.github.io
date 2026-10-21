@@ -78,28 +78,36 @@
     background: #fff6e5; border: 1px solid #e8b84b; border-radius: 6px;
     padding: 10px 12px; font-size: 13px; color: #7a5300; margin: 10px 0;
   }
+  .file-drop {
+    border: 1px dashed #bbb;
+    border-radius: 6px;
+    padding: 8px 10px;
+    transition: border-color .15s, background-color .15s;
+  }
+  .file-drop.drag-active { border-color: #222; background-color: #f0f0f0; }
 </style>
 </head>
 <body>
 
 <h1>auPAY → Shopify CSV 変換ツール</h1>
 <p class="sub">wowma商品CSV(item)と在庫CSV(stock)から、Matrixify取込用のShopify商品CSVを作成します。ブラウザ内だけで処理され、外部にデータは送信されません。</p>
+<p class="sub" style="margin-top:-18px;">ファイル選択欄は、クリックして選ぶ代わりに、ファイルをドラッグ&amp;ドロップして選択することもできます。</p>
 
 <section>
   <h2>1. CSVファイルを選択</h2>
   <div class="row">
-    <div>
+    <div class="file-drop">
       <label>商品CSV (wowma_rcmd_item_*.csv)</label>
       <input type="file" id="itemFile" accept=".csv">
     </div>
-    <div>
+    <div class="file-drop">
       <label>在庫CSV (wowma_rcmd_stock_*.csv)</label>
       <input type="file" id="stockFile" accept=".csv">
     </div>
   </div>
   <p class="hint">文字コードはShift_JIS想定です。</p>
   <div class="row" id="rakutenFileRow" style="display:none;">
-    <div>
+    <div class="file-drop">
       <label>楽天商品CSV (rakuten_rcmdse_item_*.csv) — ジャンルIDベースのType判定を使う店舗のみ必須</label>
       <input type="file" id="rakutenItemFile" accept=".csv">
     </div>
@@ -108,7 +116,7 @@
     <div>
       <label>文字無し1枚目画像(任意。ファイル名(拡張子除く)が品番(itemCode/itemManagementId)と一致する商品だけ、1枚目の画像として差し込まれます)</label>
 
-      <div style="margin-top:8px;">
+      <div class="file-drop" style="margin-top:8px;">
         <label style="font-weight:normal; font-size:12px; color:#666;">画像をまとめたZIPファイルを選択</label><br>
         <input type="file" id="cleanThumbZipFile" accept=".zip">
       </div>
@@ -172,7 +180,7 @@
     <p class="hint" style="margin-top:0;">品番(URL品番/管理番号)で楽天CSVの「ジャンルID」を調べ、下記マスタの「ディレクトリID」と照合してTypeを設定します。楽天データに対応する品番がない場合(統合品番など)やマスタにジャンルIDが無い場合は、変換後にエラーとして一覧表示されます。</p>
     <label>ジャンルID→Typeマスタ(master_shopify_*.csv。一度読み込めばこのブラウザに保存され、次回以降は再読込不要です)</label>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <input type="file" id="genreMasterFile" accept=".csv">
+      <span class="file-drop" style="display:inline-block; padding:4px 8px;"><input type="file" id="genreMasterFile" accept=".csv"></span>
       <button class="btn secondary small" id="loadGenreMasterBtn">読み込む</button>
       <button class="btn secondary small" id="clearGenreMasterBtn">クリア</button>
       <span class="hint" id="genreMasterStatus" style="margin:0;"></span>
@@ -231,7 +239,7 @@
   <div class="warn-box">
     ⚠️ このモードで読み込んだ場合、「選択項目のみのCSVをダウンロード」のみご利用いただけます(画像・バリアント構成を丸ごと差し替える「Shopify用CSVをダウンロード」は使用できません)。
   </div>
-  <input type="file" id="existingExportFile" accept=".xlsx,.csv">
+  <span class="file-drop" style="display:inline-block; padding:4px 8px;"><input type="file" id="existingExportFile" accept=".xlsx,.csv"></span>
   <button class="btn secondary" id="loadExistingBtn" style="margin-left:8px;">読み込む</button>
   <div id="existingLog" class="hint" style="margin-top:8px;"></div>
 
@@ -1786,6 +1794,46 @@ renderTagRules();
 renderLeadtimeMaster();
 populateHeaderDatalist();
 applyGenreIdTypeUI();
+
+// ファイル選択欄をドラッグ&ドロップに対応させる。
+// 対象は「1回の変換ごとに毎回選び直すデータファイル」(商品/在庫/楽天CSV、画像ZIP、
+// ジャンルマスタCSV、既存商品エクスポートファイル)のみ。Type/タグ/納期ルールのCSV取込
+// (importTypeRulesFile等)は非表示のボタン起動型のため対象外(ドロップ先となるUI領域がない)。
+// input[type=file]は要素自体への直接ドロップにブラウザ差異があるため、周囲の.file-dropを
+// 明示的なドロップターゲットにし、ドロップされたファイルをinput.filesへセットして
+// 既存のchangeイベントリスナーをそのまま動かす(itemFile/stockFile等、changeリスナーを
+// 持たず「変換」ボタン押下時にfiles[0]を直接読むものも、changeイベント発火自体は無害)。
+function enableFileDrop(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const zone = input.closest('.file-drop');
+  if (!zone) return;
+  let dragDepth = 0;
+  zone.addEventListener('dragenter', e => {
+    e.preventDefault();
+    dragDepth++;
+    zone.classList.add('drag-active');
+  });
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+  });
+  zone.addEventListener('dragleave', e => {
+    e.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) zone.classList.remove('drag-active');
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    dragDepth = 0;
+    zone.classList.remove('drag-active');
+    const dt = e.dataTransfer;
+    if (!dt || !dt.files || !dt.files.length) return;
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+['itemFile', 'stockFile', 'rakutenItemFile', 'cleanThumbZipFile', 'genreMasterFile', 'existingExportFile']
+  .forEach(enableFileDrop);
 </script>
 
 </body>
